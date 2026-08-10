@@ -1,0 +1,83 @@
+name: ParmaMaster
+options:
+  bundleIdPrefix: com.fergohamish
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    SUPPORTS_MACCATALYST: false
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+targets:
+  ParmaMaster:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Resources
+        buildPhase: resources
+        excludes:
+          - Info.plist
+    info:
+      path: Resources/Info.plist
+      properties:
+        CFBundleDisplayName: Parma Master
+        CFBundleName: Parma Master
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSLocationWhenInUseUsageDescription: Parma Master uses your location to find nearby pubs and attach venues to your entries.
+        NSLocationAlwaysAndWhenInUseUsageDescription: Parma Master uses background location to notice likely pub visits and offer local reminders without continuously tracking at high accuracy.
+        NSCameraUsageDescription: Parma Master uses the camera only when you choose to photograph a parma.
+        NSPhotoLibraryUsageDescription: Parma Master accesses your photo library only when you choose a parma photo for an entry.
+        UIBackgroundModes:
+          - location
+        UIAppFonts:
+          - DMSerifDisplay-Regular.ttf
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.fergohamish.parmamaster.backup
+            UTTypeDescription: Parma Master Backup
+            UTTypeConformsTo:
+              - public.json
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - parmabackup
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.fergohamish.ParmaMaster
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        GENERATE_INFOPLIST_FILE: false
+    scheme:
+      testTargets:
+        - ParmaMasterTests
+        - ParmaMasterUITests
+  ParmaMasterTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: ParmaMaster
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.fergohamish.ParmaMasterTests
+        GENERATE_INFOPLIST_FILE: true
+  ParmaMasterUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: ParmaMaster
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.fergohamish.ParmaMasterUITests
+        GENERATE_INFOPLIST_FILE: true
+        TEST_TARGET_NAME: ParmaMaster
