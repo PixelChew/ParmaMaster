@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Parma Master</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Parma Master</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Parma Master uses the camera only when you choose to photograph a parma.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Parma Master uses background location to notice likely pub visits and offer local reminders without continuously tracking at high accuracy.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Parma Master uses your location to find nearby pubs and attach venues to your entries.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Parma Master accesses your photo library only when you choose a parma photo for an entry.</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>DMSerifDisplay-Regular.ttf</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.json</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Parma Master Backup</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.fergohamish.parmamaster.backup</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>parmabackup</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+</dict>
+</plist>
