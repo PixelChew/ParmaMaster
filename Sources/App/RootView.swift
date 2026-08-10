@@ -35,35 +35,49 @@ struct RootView: View {
         .task {
             backupService.configure(context: modelContext, settings: settings, photoStore: photoStore)
             await notificationService.refreshStatus()
-            configureLocationPipeline()
+            configureLocationPipeline(sceneIsActive: scenePhase == .active)
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
+                configureLocationPipeline(sceneIsActive: true)
                 Task { await runForegroundVenueCheck() }
             case .background:
+                configureLocationPipeline(sceneIsActive: false)
                 Task { await backupService.performAutomaticBackupIfNeeded() }
             default:
                 break
             }
+        }
+        .onChange(of: settings.locationUseEnabled) { _, _ in
+            configureLocationPipeline(sceneIsActive: scenePhase == .active)
+        }
+        .onChange(of: settings.locationRemindersEnabled) { _, _ in
+            configureLocationPipeline(sceneIsActive: scenePhase == .active)
         }
         .onReceive(NotificationCenter.default.publisher(for: .parmaNotificationDeepLink)) { notification in
             handleDeepLink(notification.userInfo ?? [:])
         }
     }
 
-    private func configureLocationPipeline() {
+    private func configureLocationPipeline(sceneIsActive: Bool) {
         locationService.onLocationUpdate = { location in
             Task { @MainActor in
                 await pubDetection.process(location: location, entries: entries, settings: settings)
             }
         }
-        if settings.locationUseEnabled {
-            if locationService.authorizationStatus == .authorizedAlways {
-                locationService.requestAlwaysAndStartBackgroundUpdates()
-            } else {
-                locationService.startForegroundUpdates()
-            }
+        switch LocationActivityPolicy.mode(
+            locationUseEnabled: settings.locationUseEnabled,
+            remindersEnabled: settings.locationRemindersEnabled,
+            authorizationStatus: locationService.authorizationStatus,
+            sceneIsActive: sceneIsActive
+        ) {
+        case .stopped:
+            locationService.stopUpdates()
+        case .foreground:
+            locationService.startForegroundUpdates()
+        case .background:
+            locationService.requestAlwaysAndStartBackgroundUpdates()
         }
     }
 

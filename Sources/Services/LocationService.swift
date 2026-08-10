@@ -7,7 +7,6 @@ import Observation
 final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate {
     private let manager = CLLocationManager()
     private var serviceSession: CLServiceSession?
-    private var liveUpdateTask: Task<Void, Never>?
     private var locationContinuation: CheckedContinuation<CLLocation, Error>?
     private var backgroundUpdatesRequested = false
 
@@ -50,20 +49,21 @@ final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate
         manager.requestAlwaysAuthorization()
         if authorizationStatus == .authorizedAlways {
             manager.allowsBackgroundLocationUpdates = true
-            startLiveUpdates()
+            manager.showsBackgroundLocationIndicator = false
+            manager.startUpdatingLocation()
         }
     }
 
     func startForegroundUpdates() {
         backgroundUpdatesRequested = false
         manager.allowsBackgroundLocationUpdates = false
+        manager.showsBackgroundLocationIndicator = false
         serviceSession = CLServiceSession(authorization: .whenInUse)
-        startLiveUpdates()
+        manager.startUpdatingLocation()
     }
 
     func stopUpdates() {
-        liveUpdateTask?.cancel()
-        liveUpdateTask = nil
+        manager.stopUpdatingLocation()
         backgroundUpdatesRequested = false
         manager.allowsBackgroundLocationUpdates = false
         serviceSession?.invalidate()
@@ -77,22 +77,6 @@ final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate
         return try await withCheckedThrowingContinuation { continuation in
             locationContinuation = continuation
             manager.requestLocation()
-        }
-    }
-
-    private func startLiveUpdates() {
-        liveUpdateTask?.cancel()
-        liveUpdateTask = Task { @MainActor [weak self] in
-            do {
-                for try await update in CLLocationUpdate.liveUpdates() {
-                    guard !Task.isCancelled else { break }
-                    if let location = update.location {
-                        self?.receive(location)
-                    }
-                }
-            } catch {
-                self?.lastErrorMessage = "Location updates are temporarily unavailable."
-            }
         }
     }
 
@@ -111,7 +95,8 @@ final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate
         authorizationStatus = manager.authorizationStatus
         if authorizationStatus == .authorizedAlways, backgroundUpdatesRequested {
             manager.allowsBackgroundLocationUpdates = true
-            startLiveUpdates()
+            manager.showsBackgroundLocationIndicator = false
+            manager.startUpdatingLocation()
         }
         if authorizationStatus == .denied || authorizationStatus == .restricted {
             lastErrorMessage = "Location access is off. You can still search for venues manually."
@@ -128,5 +113,26 @@ final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate
             locationContinuation.resume(throwing: error)
         }
         lastErrorMessage = "Your location could not be determined."
+    }
+}
+
+enum LocationActivityMode: Equatable {
+    case stopped
+    case foreground
+    case background
+}
+
+enum LocationActivityPolicy {
+    static func mode(
+        locationUseEnabled: Bool,
+        remindersEnabled: Bool,
+        authorizationStatus: CLAuthorizationStatus,
+        sceneIsActive: Bool
+    ) -> LocationActivityMode {
+        guard locationUseEnabled else { return .stopped }
+        if remindersEnabled, authorizationStatus == .authorizedAlways {
+            return .background
+        }
+        return sceneIsActive ? .foreground : .stopped
     }
 }
