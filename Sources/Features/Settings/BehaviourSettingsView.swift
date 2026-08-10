@@ -101,6 +101,9 @@ struct BehaviourSettingsView: View {
             locationService.requestAlwaysAndStartBackgroundUpdates()
             let allowed = await notificationService.requestAuthorization()
             settings.locationRemindersEnabled = allowed
+            if !allowed {
+                locationService.startForegroundUpdates()
+            }
         }
     }
 

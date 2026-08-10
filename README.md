@@ -46,9 +46,10 @@ No paid-program entitlement is required.
   aspect ratio; all photo surfaces use native aspect-fill cropping.
 - `BackupService` writes a versioned JSON backup containing entries, history,
   attributed notes, settings, and photo data to a user-selected Files folder.
-- `LocationService` uses current Core Location service-session/live-update APIs,
-  keeps When In Use updates foreground-only, and enables silent background
-  delivery only after Always authorization. `PubDetectionService` then applies
+- `LocationService` uses Core Location service sessions and standard
+  `CLLocationManager` updates, keeps When In Use updates foreground-only, and
+  enables silent background delivery only when reminders are enabled and Always
+  authorization is granted. `PubDetectionService` then applies
   dwell, speed, distance, ambiguity, throttle,
   skip, and departure-rearm rules before suggesting a venue.
 - `AppSettings` persists appearance, rating, photo, location, reminder, and
@@ -79,7 +80,7 @@ No paid-program entitlement is required.
 ## Verification completed
 
 - Clean simulator build succeeds with Xcode 27.0 and an iOS 26 deployment target.
-- Ten unit tests pass, including over-maximum rating rejection, bounded input,
+- Twelve unit tests pass, including location-activity policy, over-maximum rating rejection, bounded input,
   global Stars propagation, repository validation, historical snapshots, and
   proportional photo resizing.
 - The UI test passes onboarding, verifies the three manual permission controls,

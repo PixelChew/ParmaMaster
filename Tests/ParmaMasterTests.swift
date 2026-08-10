@@ -1,3 +1,4 @@
+import CoreLocation
 import SwiftData
 import UIKit
 import XCTest
@@ -29,6 +30,57 @@ final class ParmaMasterTests: XCTestCase {
         XCTAssertEqual(configuration.overallDisplayMode, .stars)
         XCTAssertTrue(configuration.enabledComponents.allSatisfy { $0.displayMode == .stars })
         XCTAssertTrue(RatingSnapshot.blank(configuration: configuration).enabledComponents.allSatisfy { $0.displayMode == .stars })
+    }
+
+    func testLocationActivityRequiresEnabledRemindersAndAlwaysAuthorizationForBackground() {
+        XCTAssertEqual(
+            LocationActivityPolicy.mode(
+                locationUseEnabled: true,
+                remindersEnabled: false,
+                authorizationStatus: .authorizedAlways,
+                sceneIsActive: false
+            ),
+            .stopped
+        )
+        XCTAssertEqual(
+            LocationActivityPolicy.mode(
+                locationUseEnabled: true,
+                remindersEnabled: true,
+                authorizationStatus: .authorizedWhenInUse,
+                sceneIsActive: false
+            ),
+            .stopped
+        )
+        XCTAssertEqual(
+            LocationActivityPolicy.mode(
+                locationUseEnabled: true,
+                remindersEnabled: true,
+                authorizationStatus: .authorizedAlways,
+                sceneIsActive: false
+            ),
+            .background
+        )
+    }
+
+    func testLocationActivityUsesForegroundUpdatesOnlyWhileSceneIsActive() {
+        XCTAssertEqual(
+            LocationActivityPolicy.mode(
+                locationUseEnabled: true,
+                remindersEnabled: false,
+                authorizationStatus: .authorizedWhenInUse,
+                sceneIsActive: true
+            ),
+            .foreground
+        )
+        XCTAssertEqual(
+            LocationActivityPolicy.mode(
+                locationUseEnabled: true,
+                remindersEnabled: false,
+                authorizationStatus: .authorizedWhenInUse,
+                sceneIsActive: false
+            ),
+            .stopped
+        )
     }
 
     func testRepositoryRejectsAnOverMaximumRating() throws {
