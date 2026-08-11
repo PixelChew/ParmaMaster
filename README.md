@@ -67,10 +67,6 @@ Parma Master asks only when a feature needs access:
 - Files access when you explicitly choose a backup folder
 
 
-## Contributing
-
-Issues, suggestions, and pull requests are welcome. If you are changing the scoring model, data model, backup format, or location behaviour, please explain the user-facing impact in your pull request.
-
 ## License
 
 Parma Master is available under the Apache License 2.0. See [LICENSE](LICENSE).
