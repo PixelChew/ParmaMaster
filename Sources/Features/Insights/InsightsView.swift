@@ -9,8 +9,8 @@ struct InsightsView: View {
     @State private var selectedEntry: ParmaEntry?
 
     var body: some View {
-        // Calculate once per render: the calculator decodes every entry's rating
-        // JSON, so recomputing it per statistic hangs the UI on larger logs.
+        // Calculate once per render so every statistic shares the same aggregate
+        // pass instead of repeatedly walking the full log.
         let insights = ParmaInsightsCalculator.calculate(entries)
         NavigationStack {
             ScrollView {
@@ -219,7 +219,7 @@ private struct ParmaMapView: View {
     @State private var position: MapCameraPosition = .automatic
 
     /// One marker per canonical venue, with display strings precomputed once
-    /// per body evaluation instead of three filtered walks (audit P-06).
+    /// per body evaluation instead of three filtered walks.
     private struct VenueAnnotation: Identifiable {
         let id: UUID
         let title: String

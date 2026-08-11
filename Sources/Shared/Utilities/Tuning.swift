@@ -2,8 +2,7 @@ import CoreLocation
 import Foundation
 
 /// Central home for behavioural policy constants that were previously
-/// scattered inline across services (audit finding H-01).
-
+/// scattered inline across services.
 enum LocationTuning {
     /// Delivery granularity for foreground continuous updates.
     static let distanceFilter: CLLocationDistance = 75

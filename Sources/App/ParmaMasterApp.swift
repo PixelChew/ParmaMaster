@@ -101,8 +101,8 @@ struct ParmaMasterApp: App {
 }
 
 /// Owns `ModelContainer` creation so a failed migration surfaces a recovery
-/// screen instead of crashing at launch in a loop (audit finding H-03: the
-/// previous `try!` made a bad migration an unrecoverable data lockout).
+/// screen instead of crashing at launch in a loop. The previous `try!` made a
+/// bad migration an unrecoverable data lockout.
 @MainActor
 @Observable
 final class ModelContainerState {

@@ -183,8 +183,8 @@ final class AppSettings {
         persistNow()
     }
 
-    /// Coalesces the encode + UserDefaults write so rapid-fire changes (e.g. a
-    /// ColorPicker drag) cause one write instead of a storm (audit P-09).
+    /// Coalesces the encode + UserDefaults write so rapid-fire changes such as
+    /// a ColorPicker drag cause one write instead of a storm.
     private func persist() {
         guard !isLoading else { return }
         persistTask?.cancel()

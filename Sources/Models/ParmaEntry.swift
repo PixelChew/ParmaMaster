@@ -386,7 +386,7 @@ enum ParmaSchemaV3: VersionedSchema {
             set { venue?.longitude = newValue }
         }
 
-        // Decoded forms are memoised (audit finding P-01): rating/notes JSON
+        // Decoded forms are memoised because rating and notes JSON was
         // previously decoded on every access, multiplying into thousands of
         // decodes per render across sorting, cards, search and the map.
         @Transient private var ratingCache = DecodedJSONCache<RatingSnapshot>()
@@ -511,8 +511,8 @@ enum ParmaMigrationPlan: SchemaMigrationPlan {
         let revisions: [RevisionRecord]
     }
 
-    // Lock-guarded rather than `nonisolated(unsafe)` (audit finding A-08):
-    // migration stages run once and serially, but the compiler cannot see it.
+    // Lock-guarded rather than `nonisolated(unsafe)`: migration stages run
+    // once and serially, but the compiler cannot see that execution guarantee.
     private static let migrationRecords = LockIsolated<[EntryRecord]>([])
     private static let v2VenueRecords = LockIsolated<[VenueRecord]>([])
     private static let v2EntryRecords = LockIsolated<[V2EntryRecord]>([])

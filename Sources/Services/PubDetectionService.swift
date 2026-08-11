@@ -26,7 +26,7 @@ final class PubDetectionService {
     private let mapSearch: MapSearching
     private let notifier: VisitNotifying
     private let defaults: UserDefaults
-    /// Injectable clock so dwell/throttle behaviour is unit-testable (T-01).
+    /// Injectable clock so dwell/throttle behaviour is unit-testable.
     @ObservationIgnored var now: () -> Date = { .now }
 
     @ObservationIgnored private var context: ModelContext?
@@ -62,9 +62,9 @@ final class PubDetectionService {
         // ago must not resurrect a stale "Welcome to X" card at launch.
     }
 
-    /// Wires the long-lived dependencies once at app start (audit finding
-    /// A-01: the pipeline previously captured a stale snapshot of all entries
-    /// in a closure that was only refreshed on scene changes).
+    /// Wires the long-lived dependencies once at app start. The pipeline
+    /// previously captured a stale snapshot of all entries in a closure that
+    /// was only refreshed on scene changes.
     func configure(
         context: ModelContext,
         settings: AppSettings,
@@ -154,8 +154,8 @@ final class PubDetectionService {
         let hasDwelled = dwellStartedAt.map { now().timeIntervalSince($0) >= DetectionTuning.dwellDuration } ?? false
         guard throttleExpired, foregroundCheck || hasDwelled else { return }
 
-        // A settled visit needs no further searching (audit finding B-04): the
-        // venue is known and the notification decision has been made.
+        // A settled visit needs no further searching: the venue is known and
+        // the notification decision has already been made.
         guard !insideSettledVisit else { return }
 
         lastSearchAt = now()
@@ -286,8 +286,7 @@ final class PubDetectionService {
               notifier.authorizationStatus == .authorized
         else { return }
 
-        // Per-venue cooldown so a brief walk away and back does not re-ping
-        // (audit finding B-08).
+        // Per-venue cooldown so a brief walk away and back does not re-ping.
         if let lastNotified = notificationLog[venue.id],
            now().timeIntervalSince(lastNotified) < DetectionTuning.venueNotificationCooldown {
             markNotificationHandled()
@@ -362,9 +361,9 @@ final class PubDetectionService {
         visitSession = session
     }
 
-    /// Writes only when the session materially changed (audit finding B-03:
-    /// this previously wrote a JSON blob to UserDefaults on every location
-    /// update while a session existed).
+    /// Writes only when the session materially changed. Previously this wrote
+    /// a JSON blob to UserDefaults on every location update while a session
+    /// existed.
     private func persistVisitIfChanged(oldValue: VisitSession?) {
         guard visitSession != oldValue else { return }
         guard let visitSession, let data = try? JSONEncoder().encode(visitSession) else {
@@ -375,7 +374,7 @@ final class PubDetectionService {
     }
 }
 
-// MARK: - Diagnostics counters (audit finding T-03)
+// MARK: - Diagnostics counters
 
 /// Daily counters for validating battery behaviour in the field, surfaced in
 /// Behaviour settings.

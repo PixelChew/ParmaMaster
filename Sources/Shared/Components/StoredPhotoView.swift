@@ -3,7 +3,7 @@ import UIKit
 
 struct StoredPhotoView: View {
     let filename: String?
-    /// Renders a downsampled image for list rows and cards (audit P-05).
+    /// Renders a downsampled image for list rows and cards.
     var useThumbnail = false
     @Environment(PhotoStore.self) private var photoStore
 

@@ -46,9 +46,9 @@ struct CameraPicker: View {
     }
 }
 
-// UIImagePickerController is a legacy API (audit finding D-02). It remains
-// functional and is kept deliberately: replacing camera capture with a custom
-// AVCaptureSession flow needs on-device verification before it can ship.
+// UIImagePickerController is a legacy API. It remains functional and is kept
+// deliberately: replacing camera capture with a custom AVCaptureSession flow
+// needs on-device verification before it can ship.
 private struct CameraController: UIViewControllerRepresentable {
     let onImage: (Data) -> Void
 

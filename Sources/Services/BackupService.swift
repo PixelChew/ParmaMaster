@@ -10,7 +10,7 @@ extension UTType {
 }
 
 /// Everything an `EntryBackup` needs except the photo bytes, which are read
-/// off the main actor inside the detached export task (audit B-06).
+/// off the main actor inside the detached export task.
 private struct PendingEntryBackup: Sendable {
     let id: UUID
     let venueID: UUID
@@ -98,7 +98,8 @@ final class BackupService {
               lastSuccessfulBackup.map({ Date.now.timeIntervalSince($0) >= BackupTuning.minimumAutomaticInterval }) ?? true
         else { return }
 
-        // Assertion so iOS grants time when this fires on backgrounding (audit B-06).
+        // Request background execution time when an automatic backup starts as
+        // the app moves out of the foreground.
         let taskID = UIApplication.shared.beginBackgroundTask(expirationHandler: nil)
         defer {
             if taskID != .invalid {
@@ -159,8 +160,8 @@ final class BackupService {
         let destination = directory.appending(path: BackupTuning.backupFilename)
         let temporary = directory.appending(path: BackupTuning.temporaryFilename)
 
-        // Photo reads, JSON encode and the coordinated write happen off the
-        // main actor; only Sendable values cross into the task (audit B-06).
+        // Photo reads, JSON encoding and the coordinated write happen off the
+        // main actor; only Sendable values cross into the task.
         try await Task.detached(priority: .utility) {
             let payload = BackupPayload(
                 exportedAt: exportedAt,
@@ -194,7 +195,7 @@ final class BackupService {
                     do {
                         try data.write(to: temporary, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
                     } catch {
-                        // Some File Provider volumes reject protection classes (audit S-01).
+                        // Some File Provider volumes reject protection classes.
                         AppLog.backup.notice("Protected backup write failed, retrying unprotected: \(error.localizedDescription, privacy: .public)")
                         try data.write(to: temporary, options: [.atomic])
                     }
@@ -227,8 +228,8 @@ final class BackupService {
         isWorking = true
         defer { isWorking = false }
 
-        // Coordinated read + JSON decode off the main actor; model writes
-        // stay on the MainActor below (audit B-06).
+        // Coordinated read and JSON decode happen off the main actor; model
+        // writes stay on the MainActor below.
         let payload = try await Task.detached(priority: .utility) { () throws -> BackupPayload in
             var coordinationError: NSError?
             var readData: Data?

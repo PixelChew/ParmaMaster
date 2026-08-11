@@ -10,7 +10,7 @@ struct HomeView: View {
     @Environment(PubDetectionService.self) private var pubDetection
     @Environment(LocalParmaRepository.self) private var repository
     @Environment(RerunSuggestionService.self) private var rerunService
-    // Store-sorted so the render pass never re-sorts the whole log (audit P-02).
+    // Store-sorted so the render pass never re-sorts the whole log.
     @Query(sort: \ParmaEntry.currentRatingDate, order: .reverse) private var entries: [ParmaEntry]
 
     /// How many recent entries to show, keyed only to screen height — never reduced

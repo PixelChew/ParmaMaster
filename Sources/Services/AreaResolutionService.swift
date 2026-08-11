@@ -73,7 +73,7 @@ enum AreaResolutionService {
             }
         }
 
-        // Cheap probe so the steady state skips the network path (audit B-07).
+        // Cheap probe so the steady state skips the network path entirely.
         var probe = FetchDescriptor<Venue>(
             predicate: #Predicate<Venue> { venue in
                 venue.locality == nil || venue.locality == ""

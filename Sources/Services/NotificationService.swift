@@ -4,7 +4,7 @@ import UserNotifications
 import UIKit
 
 /// Abstraction over visit-reminder delivery so the detection pipeline can be
-/// unit tested without UserNotifications (audit findings A-04, T-01).
+/// unit tested without UserNotifications.
 @MainActor
 protocol VisitNotifying: AnyObject {
     var authorizationStatus: UNAuthorizationStatus { get }

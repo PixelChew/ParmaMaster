@@ -1,6 +1,6 @@
 import Foundation
 
-/// Memoises the decoded form of a JSON `Data` blob (audit finding P-01).
+/// Memoises the decoded form of a JSON `Data` blob.
 ///
 /// `ParmaEntry.currentRating`/`notes` previously decoded their backing data on
 /// every access, which multiplied into thousands of decodes per render once

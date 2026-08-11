@@ -135,7 +135,7 @@ private struct PermissionsExplanationView: View {
             Task { await refreshPermissionStatuses() }
         }
         // The setting follows the actual grant rather than being switched on
-        // optimistically before iOS answers (audit finding UX-03).
+        // optimistically before iOS answers.
         .onChange(of: locationService.authorizationStatus) { _, status in
             if status == .authorizedWhenInUse || status == .authorizedAlways {
                 settings.locationUseEnabled = true
