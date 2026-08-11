@@ -76,6 +76,11 @@ final class PubDetectionService {
         self.settings = settings
         self.repository = repository
         self.locationService = locationService
+        if let session = visitSession,
+           !session.skipped,
+           now().timeIntervalSince(session.firstSeenAt) < locationSuggestionDwellDuration {
+            locationService?.setPendingVisitVenue(session.candidate)
+        }
     }
 
     var diagnosticsSummary: String {
@@ -85,6 +90,7 @@ final class PubDetectionService {
     func skipCurrentVisit() {
         guard var session = visitSession else { return }
         cancelPendingReminderIfNeeded(for: session)
+        locationService?.setPendingVisitVenue(nil)
         session.skipped = true
         visitSession = session
         currentCandidate = nil
@@ -94,6 +100,7 @@ final class PubDetectionService {
         if let session = visitSession {
             cancelPendingReminderIfNeeded(for: session)
         }
+        locationService?.setPendingVisitVenue(nil)
         visitSession = nil
         currentCandidate = nil
         nearbyChoices = []
@@ -241,6 +248,22 @@ final class PubDetectionService {
         }
     }
 
+    /// Exit callback from the one-slot pending-visit region. Before dwell
+    /// completion it proves continuous presence was broken, so the delayed
+    /// reminder and visit session are cancelled. After dwell, the suggestion
+    /// was already eligible and only the temporary region needs removing.
+    func processPendingVisitExit() {
+        guard let session = visitSession else {
+            locationService?.setPendingVisitVenue(nil)
+            return
+        }
+        if now().timeIntervalSince(session.firstSeenAt) < locationSuggestionDwellDuration {
+            clearVisitState()
+        } else {
+            locationService?.setPendingVisitVenue(nil)
+        }
+    }
+
     // MARK: - Search & classification
 
     private var throttleExpired: Bool {
@@ -312,6 +335,7 @@ final class PubDetectionService {
             await notifyIfAppropriate(for: candidate, existingEntry: existingEntry, delay: dwellRemaining)
             return
         }
+        locationService?.setPendingVisitVenue(nil)
         currentCandidate = candidate
         await notifyIfAppropriate(for: candidate, existingEntry: existingEntry, delay: 0)
     }
@@ -385,6 +409,7 @@ final class PubDetectionService {
                 firstSeenAt: now(),
                 outsideSince: nil
             )
+            locationService?.setPendingVisitVenue(venue)
         }
     }
 
@@ -396,6 +421,7 @@ final class PubDetectionService {
             return
         }
         guard now().timeIntervalSince(session.firstSeenAt) >= locationSuggestionDwellDuration else { return }
+        locationService?.setPendingVisitVenue(nil)
         currentCandidate = session.candidate
     }
 
