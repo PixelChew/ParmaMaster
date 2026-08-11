@@ -1,10 +1,13 @@
+import Observation
 import SwiftData
 import SwiftUI
 
 struct HomeView: View {
     @Environment(AppRouter.self) private var router
     @Environment(AppSettings.self) private var settings
+    @Environment(HomeGreetingSession.self) private var homeGreeting
     @Environment(PubDetectionService.self) private var pubDetection
+    @Environment(LocalParmaRepository.self) private var repository
     @Query private var entries: [ParmaEntry]
 
     private var recentEntries: [ParmaEntry] {
@@ -15,11 +18,11 @@ struct HomeView: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 20) {
-                    BrandedHeading(title: "\(greeting),\nHamish.")
+                    BrandedHeading(title: homeGreeting.message)
                         .padding(.top, 16)
 
                     if let candidate = pubDetection.currentCandidate {
-                        let existing = EntryRepository.findExisting(for: candidate, in: entries)
+                        let existing = repository.findExisting(for: candidate, in: entries)
                         VenueSuggestionCard(candidate: candidate, existingEntry: existing)
                     }
 
@@ -72,12 +75,65 @@ struct HomeView: View {
         }
     }
 
-    private var greeting: String {
-        switch Calendar.current.component(.hour, from: .now) {
-        case 0..<12: "Good morning"
-        case 12..<18: "Good afternoon"
-        default: "Good evening"
+}
+
+@MainActor
+@Observable
+final class HomeGreetingSession {
+    let message: String
+
+    init(displayName: String = "Hamish") {
+        message = HomeGreeting.message(displayName: displayName)
+    }
+}
+
+enum HomeGreeting {
+    static func message(
+        displayName: String = "Hamish",
+        at date: Date = .now,
+        calendar: Calendar = .current
+    ) -> String {
+        candidates(at: date, calendar: calendar, displayName: displayName).randomElement()!
+    }
+
+    static func candidates(at date: Date, calendar: Calendar, displayName: String = "Hamish") -> [String] {
+        let hour = calendar.component(.hour, from: date)
+        let day = calendar.weekdaySymbols[calendar.component(.weekday, from: date) - 1]
+
+        var greetings = [
+            "It's always a good time for a parma.",
+            "Welcome back, \(displayName).",
+            "Time for a parma?",
+            "Parma or parmi?",
+            "How do you say it?",
+            "Time to rank.",
+            "\(day) parma day."
+        ]
+
+        switch hour {
+        case 5..<12:
+            greetings.append("Good morning.")
+        case 12..<17:
+            greetings.append("Good afternoon.")
+        case 17..<22:
+            greetings.append("Good evening.")
+        default:
+            break
         }
+
+        if (17..<21).contains(hour) {
+            greetings += ["Parma dinner?", "Winner winna parma dinner"]
+        }
+
+        if (0..<5).contains(hour) {
+            greetings.append("Up late?")
+        }
+
+        if hour >= 22 {
+            greetings.append("Late night parma?")
+        }
+
+        return greetings
     }
 }
 

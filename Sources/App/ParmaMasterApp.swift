@@ -7,6 +7,7 @@ struct ParmaMasterApp: App {
 
     private let modelContainer: ModelContainer
     @State private var settings: AppSettings
+    @State private var homeGreetingSession: HomeGreetingSession
     @State private var currentUser: CurrentUserProfile
     @State private var repository: LocalParmaRepository
     @State private var router: AppRouter
@@ -22,8 +23,10 @@ struct ParmaMasterApp: App {
             migrationPlan: ParmaMigrationPlan.self
         )
         let notificationService = NotificationService()
+        let currentUser = CurrentUserProfile()
         _settings = State(initialValue: AppSettings())
-        _currentUser = State(initialValue: CurrentUserProfile())
+        _homeGreetingSession = State(initialValue: HomeGreetingSession(displayName: currentUser.displayName))
+        _currentUser = State(initialValue: currentUser)
         _repository = State(initialValue: LocalParmaRepository())
         _router = State(initialValue: AppRouter())
         _photoStore = State(initialValue: PhotoStore())
@@ -38,6 +41,7 @@ struct ParmaMasterApp: App {
             RootView()
                 .modelContainer(modelContainer)
                 .environment(settings)
+                .environment(homeGreetingSession)
                 .environment(currentUser)
                 .environment(repository)
                 .environment(router)
