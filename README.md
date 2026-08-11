@@ -1,13 +1,8 @@
-# Parma Master
+# Parma Master 1.2
 
 A local-first iPhone app for rating, remembering, and discovering great parmas.
 
 Parma Master helps you keep a personal log of venues, rate each parma by its components, add notes and photos, and find places worth returning to. It is built natively for iPhone with SwiftUI and Apple frameworks.
-
-The app is local-first: your venue records, ratings, notes, photos, history,
-backups, and insights remain on the device unless you explicitly choose a Files
-location for a backup. There is no server, login, analytics, advertising,
-CloudKit, or third-party runtime dependency.
 
 ## What you can do
 
