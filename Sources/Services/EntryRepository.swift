@@ -20,9 +20,9 @@ final class LocalParmaRepository: ParmaRepositoryProtocol {
         entries.first { VenueIdentity.matches(venue, entry: $0) }
     }
 
-    /// Indexed lookup replacing the previous full-table linear scan (audit
-    /// finding P-04). Both `venueIdentity` and `id` are unique attributes, so
-    /// the store answers these predicates without materialising the table.
+    /// Indexed lookup replacing the previous full-table linear scan. Both
+    /// `venueIdentity` and `id` are unique attributes, so the store answers
+    /// these predicates without materialising the table.
     func findExisting(for venue: VenueCandidate, in context: ModelContext) throws -> ParmaEntry? {
         guard let matched = try findVenue(matching: venue, in: context) else { return nil }
         return matched.entries.max { $0.lastModifiedAt < $1.lastModifiedAt }
