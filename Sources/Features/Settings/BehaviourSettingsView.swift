@@ -37,6 +37,12 @@ struct BehaviourSettingsView: View {
                             else { settings.locationRemindersEnabled = false }
                         }
                     ))
+
+                    Picker("Reminder dwell time", selection: $settings.locationSuggestionDwellMinutes) {
+                        ForEach(LocationSuggestionDwellOption.allCases) { option in
+                            Text(option.label).tag(option.rawValue)
+                        }
+                    }
                 }
 
                 if settings.locationRemindersEnabled,
@@ -57,7 +63,7 @@ struct BehaviourSettingsView: View {
             } header: {
                 Text("Location")
             } footer: {
-                Text("Parma Master uses your location to find pubs and send a friendly reminder when you visit somewhere worth logging. Choose “Always” so reminders still work when the app is closed.\n\n\(pubDetection.diagnosticsSummary)")
+                Text("Parma Master uses your location to find pubs and send a friendly reminder when you visit somewhere worth logging. Choose “Always” so reminders still work when the app is closed. Reminders only trigger after the selected dwell time while you remain at the venue.\n\n\(pubDetection.diagnosticsSummary)")
             }
 
             Section("Notifications") {

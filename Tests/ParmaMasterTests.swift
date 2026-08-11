@@ -123,6 +123,20 @@ final class ParmaMasterTests: XCTestCase {
         XCTAssertTrue(snapshot.rerunSuggestionsEnabled)
         XCTAssertEqual(snapshot.rerunStaleMonths, 5)
         XCTAssertEqual(snapshot.rerunHideMonths, 1)
+        XCTAssertEqual(snapshot.locationSuggestionDwellMinutes, 15)
+    }
+
+    func testAppSettingsPersistsLocationSuggestionDwellMinutes() throws {
+        let suite = "SettingsDwell-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let settings = AppSettings(defaults: defaults)
+        settings.locationSuggestionDwellMinutes = 30
+        settings.flushPendingPersist()
+
+        let reloaded = AppSettings(defaults: defaults)
+        XCTAssertEqual(reloaded.locationSuggestionDwellMinutes, 30)
     }
 
     func testVenueBackupRoundtripPreservesLocalityAndExclusion() throws {

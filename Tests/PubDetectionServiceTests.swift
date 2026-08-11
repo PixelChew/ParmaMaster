@@ -26,6 +26,10 @@ final class PubDetectionServiceTests: XCTestCase {
         await harness.service.process(location: harness.userLocation())
 
         XCTAssertEqual(harness.mapSearch.searchCount, 1)
+        XCTAssertNil(harness.service.currentCandidate)
+
+        harness.clock.advance(by: harness.settings.locationSuggestionDwellDuration + 1)
+        await harness.service.process(location: harness.userLocation())
         XCTAssertEqual(harness.service.currentCandidate?.name, "Dwell Hotel")
     }
 
@@ -42,7 +46,7 @@ final class PubDetectionServiceTests: XCTestCase {
         XCTAssertNil(harness.service.currentCandidate)
     }
 
-    func testForegroundCheckBypassesTheDwellRequirement() async throws {
+    func testForegroundCheckBypassesTheSearchDwellRequirement() async throws {
         let harness = try makeHarness()
         defer { harness.cleanUp() }
         harness.mapSearch.results = [pubCandidate(named: "Foreground Hotel")]
@@ -50,7 +54,8 @@ final class PubDetectionServiceTests: XCTestCase {
         await harness.service.process(location: harness.userLocation(), foregroundCheck: true)
 
         XCTAssertEqual(harness.mapSearch.searchCount, 1)
-        XCTAssertEqual(harness.service.currentCandidate?.name, "Foreground Hotel")
+        XCTAssertNil(harness.service.currentCandidate)
+        XCTAssertEqual(harness.notifier.scheduled.first?.delay, harness.settings.locationSuggestionDwellDuration)
     }
 
     // MARK: - Search throttle
@@ -99,6 +104,7 @@ final class PubDetectionServiceTests: XCTestCase {
         await harness.service.process(location: harness.userLocation())
         XCTAssertEqual(harness.mapSearch.searchCount, 1)
         XCTAssertEqual(harness.notifier.scheduled.count, 1)
+        XCTAssertNil(harness.service.currentCandidate)
 
         harness.clock.advance(by: 20 * 60)
         await harness.service.process(location: harness.userLocation())
@@ -116,6 +122,8 @@ final class PubDetectionServiceTests: XCTestCase {
         harness.mapSearch.results = [pubCandidate(named: "Departure Hotel")]
 
         await harness.service.process(location: harness.userLocation(), foregroundCheck: true)
+        harness.clock.advance(by: harness.settings.locationSuggestionDwellDuration + 1)
+        await harness.service.process(location: harness.userLocation())
         XCTAssertNotNil(harness.service.currentCandidate)
 
         harness.clock.advance(by: 60)
@@ -138,6 +146,9 @@ final class PubDetectionServiceTests: XCTestCase {
         await harness.service.process(location: harness.userLocation(), foregroundCheck: true)
         XCTAssertEqual(harness.mapSearch.searchCount, 1)
         XCTAssertEqual(harness.notifier.scheduled.count, 1)
+        XCTAssertNil(harness.service.currentCandidate)
+
+        harness.clock.advance(by: harness.settings.locationSuggestionDwellDuration + 1)
 
         let relaunched = harness.makeRelaunchedService()
         await relaunched.processVisit(
@@ -158,6 +169,9 @@ final class PubDetectionServiceTests: XCTestCase {
         await harness.service.process(location: harness.userLocation(), foregroundCheck: true)
         XCTAssertEqual(harness.mapSearch.searchCount, 1)
         XCTAssertEqual(harness.notifier.scheduled.count, 1)
+        harness.clock.advance(by: harness.settings.locationSuggestionDwellDuration + 1)
+        await harness.service.process(location: harness.userLocation())
+        XCTAssertNotNil(harness.service.currentCandidate)
 
         harness.service.clearVisitState()
         harness.clock.advance(by: 60 * 60)
@@ -173,7 +187,7 @@ final class PubDetectionServiceTests: XCTestCase {
 
     // MARK: - Known venues
 
-    func testKnownVenueArrivalNotifiesWithTheExistingEntryWithoutSearching() async throws {
+    func testKnownVenueArrivalRequiresDwellBeforeSurfacingSuggestion() async throws {
         let harness = try makeHarness()
         defer { harness.cleanUp() }
         let candidate = pubCandidate(named: "Known Hotel", identifier: "map-known-hotel")
@@ -188,10 +202,39 @@ final class PubDetectionServiceTests: XCTestCase {
 
         await harness.service.processKnownVenueArrival(venueID: venueID)
 
-        XCTAssertNotNil(harness.service.currentCandidate)
+        XCTAssertNil(harness.service.currentCandidate)
         XCTAssertEqual(harness.notifier.scheduled.count, 1)
+        XCTAssertEqual(harness.notifier.scheduled.first?.delay, harness.settings.locationSuggestionDwellDuration)
         XCTAssertNotNil(harness.notifier.scheduled.first?.existing)
         XCTAssertEqual(harness.mapSearch.searchCount, 0)
+
+        harness.clock.advance(by: harness.settings.locationSuggestionDwellDuration + 1)
+        await harness.service.processVisit(
+            coordinate: CLLocationCoordinate2D(latitude: baseLatitude, longitude: baseLongitude),
+            isArrival: true
+        )
+        XCTAssertNotNil(harness.service.currentCandidate)
+    }
+
+    func testKnownVenueExitBeforeDwellCancelsPendingReminder() async throws {
+        let harness = try makeHarness()
+        defer { harness.cleanUp() }
+        let candidate = pubCandidate(named: "Exit Hotel", identifier: "map-exit-hotel")
+        let entry = try harness.repository.create(
+            venue: candidate,
+            rating: makeRating(parma: 4, chips: 2, salad: 2),
+            notes: AttributedString(),
+            photoFilename: nil,
+            in: harness.context
+        )
+        let venueID = try XCTUnwrap(entry.venue).id
+
+        await harness.service.processKnownVenueArrival(venueID: venueID)
+        XCTAssertEqual(harness.notifier.scheduled.count, 1)
+        let scheduledVenueID = try XCTUnwrap(harness.notifier.scheduled.first?.venue.id)
+
+        harness.service.processKnownVenueExit(venueID: venueID)
+        XCTAssertEqual(harness.notifier.cancelledVenueIDs, [scheduledVenueID])
     }
 
     // MARK: - Skipping
@@ -202,11 +245,12 @@ final class PubDetectionServiceTests: XCTestCase {
         harness.mapSearch.results = [pubCandidate(named: "Skip Hotel")]
 
         await harness.service.process(location: harness.userLocation(), foregroundCheck: true)
-        XCTAssertNotNil(harness.service.currentCandidate)
+        XCTAssertNil(harness.service.currentCandidate)
         XCTAssertEqual(harness.notifier.scheduled.count, 1)
 
         harness.service.skipCurrentVisit()
         XCTAssertNil(harness.service.currentCandidate)
+        XCTAssertEqual(harness.notifier.cancelledVenueIDs.count, 1)
 
         harness.clock.advance(by: DetectionTuning.searchThrottle + 60)
         await harness.service.process(location: harness.userLocation())
@@ -269,10 +313,19 @@ private final class MockMapSearch: MapSearching {
 @MainActor
 private final class MockNotifier: VisitNotifying {
     var authorizationStatus: UNAuthorizationStatus = .authorized
-    private(set) var scheduled: [(venue: VenueCandidate, existing: ParmaEntry?)] = []
+    private(set) var scheduled: [(venue: VenueCandidate, existing: ParmaEntry?, delay: TimeInterval)] = []
+    private(set) var cancelledVenueIDs: [String] = []
 
-    func scheduleVisitReminder(venue: VenueCandidate, existingEntry: ParmaEntry?) async throws {
-        scheduled.append((venue: venue, existing: existingEntry))
+    func scheduleVisitReminder(
+        venue: VenueCandidate,
+        existingEntry: ParmaEntry?,
+        delay: TimeInterval
+    ) async throws {
+        scheduled.append((venue: venue, existing: existingEntry, delay: delay))
+    }
+
+    func cancelVisitReminder(venueID: String) {
+        cancelledVenueIDs.append(venueID)
     }
 }
 

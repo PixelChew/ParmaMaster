@@ -9,6 +9,7 @@ private struct VisitSession: Codable, Equatable {
     var candidate: VenueCandidate
     var skipped: Bool
     var notificationSent: Bool
+    var notificationScheduledAt: Date?
     var firstSeenAt: Date
     var outsideSince: Date?
 
@@ -83,12 +84,16 @@ final class PubDetectionService {
 
     func skipCurrentVisit() {
         guard var session = visitSession else { return }
+        cancelPendingReminderIfNeeded(for: session)
         session.skipped = true
         visitSession = session
         currentCandidate = nil
     }
 
     func clearVisitState() {
+        if let session = visitSession {
+            cancelPendingReminderIfNeeded(for: session)
+        }
         visitSession = nil
         currentCandidate = nil
         nearbyChoices = []
@@ -136,6 +141,7 @@ final class PubDetectionService {
             // Fresh launch mid-visit: bring the suggestion card back without
             // waiting for the search throttle.
             restoreCandidateFromSession()
+            await notifyFromSessionIfEligible()
         }
 
         if location.speed >= DetectionTuning.transitSpeed {
@@ -182,6 +188,7 @@ final class PubDetectionService {
         if let session = visitSession,
            location.distance(from: session.venueLocation) <= DetectionTuning.departureDistance {
             restoreCandidateFromSession()
+            await notifyFromSessionIfEligible()
             return
         }
         guard throttleExpired else { return }
@@ -210,9 +217,8 @@ final class PubDetectionService {
         )
         establishVisit(for: candidate)
         guard visitSession?.skipped != true else { return }
-        currentCandidate = candidate
         let existingEntry = venue.entries.max { $0.lastModifiedAt < $1.lastModifiedAt }
-        await notifyIfAppropriate(for: candidate, existingEntry: existingEntry)
+        await activateVisitIfEligible(candidate: candidate, existingEntry: existingEntry)
     }
 
     /// A geofence exit for the venue the session is anchored to ends the
@@ -264,9 +270,8 @@ final class PubDetectionService {
             statusMessage = nil
             establishVisit(for: first)
             guard visitSession?.skipped != true else { return }
-            currentCandidate = first
             let existingEntry = existingEntry(for: first)
-            await notifyIfAppropriate(for: first, existingEntry: existingEntry)
+            await activateVisitIfEligible(candidate: first, existingEntry: existingEntry)
         } catch {
             AppLog.detection.error("Nearby venue lookup failed: \(error.localizedDescription)")
             statusMessage = "Nearby venue lookup is unavailable. You can still search manually."
@@ -280,7 +285,33 @@ final class PubDetectionService {
 
     // MARK: - Notification
 
-    private func notifyIfAppropriate(for venue: VenueCandidate, existingEntry: ParmaEntry?) async {
+    private var locationSuggestionDwellDuration: TimeInterval {
+        settings?.locationSuggestionDwellDuration ?? LocationSuggestionDwellOption.default.duration
+    }
+
+    private func activateVisitIfEligible(candidate: VenueCandidate, existingEntry: ParmaEntry?) async {
+        guard let session = visitSession, session.candidate.id == candidate.id, !session.skipped else { return }
+        let dwellRemaining = locationSuggestionDwellDuration - now().timeIntervalSince(session.firstSeenAt)
+        guard dwellRemaining <= 0 else {
+            currentCandidate = nil
+            await notifyIfAppropriate(for: candidate, existingEntry: existingEntry, delay: dwellRemaining)
+            return
+        }
+        currentCandidate = candidate
+        await notifyIfAppropriate(for: candidate, existingEntry: existingEntry, delay: 0)
+    }
+
+    private func notifyFromSessionIfEligible() async {
+        guard let session = visitSession, !session.skipped else { return }
+        let existingEntry = existingEntry(for: session.candidate)
+        await activateVisitIfEligible(candidate: session.candidate, existingEntry: existingEntry)
+    }
+
+    private func notifyIfAppropriate(
+        for venue: VenueCandidate,
+        existingEntry: ParmaEntry?,
+        delay: TimeInterval
+    ) async {
         guard let settings, settings.locationRemindersEnabled,
               visitSession?.notificationSent != true,
               notifier.authorizationStatus == .authorized
@@ -295,17 +326,19 @@ final class PubDetectionService {
         }
 
         do {
-            try await notifier.scheduleVisitReminder(venue: venue, existingEntry: existingEntry)
+            let scheduleDelay = max(delay, 0)
+            try await notifier.scheduleVisitReminder(venue: venue, existingEntry: existingEntry, delay: scheduleDelay)
             recordNotification(for: venue.id)
-            markNotificationHandled()
+            markNotificationHandled(scheduledAt: scheduleDelay > 0 ? now() : nil)
         } catch {
             AppLog.notifications.error("Visit reminder failed: \(error.localizedDescription)")
         }
     }
 
-    private func markNotificationHandled() {
+    private func markNotificationHandled(scheduledAt: Date? = nil) {
         guard var session = visitSession, !session.notificationSent else { return }
         session.notificationSent = true
+        session.notificationScheduledAt = scheduledAt
         visitSession = session
     }
 
@@ -329,6 +362,7 @@ final class PubDetectionService {
                 candidate: venue,
                 skipped: false,
                 notificationSent: false,
+                notificationScheduledAt: nil,
                 firstSeenAt: now(),
                 outsideSince: nil
             )
@@ -337,7 +371,8 @@ final class PubDetectionService {
 
     private func restoreCandidateFromSession() {
         discardExpiredSession()
-        guard let session = visitSession, !session.skipped, currentCandidate == nil else { return }
+        guard let session = visitSession, !session.skipped, currentCandidate == nil,
+              now().timeIntervalSince(session.firstSeenAt) >= locationSuggestionDwellDuration else { return }
         currentCandidate = session.candidate
     }
 
@@ -360,6 +395,19 @@ final class PubDetectionService {
             session.outsideSince = nil
         }
         visitSession = session
+    }
+
+    private func cancelPendingReminderIfNeeded(for session: VisitSession) {
+        guard session.notificationScheduledAt != nil,
+              now().timeIntervalSince(session.firstSeenAt) < locationSuggestionDwellDuration else { return }
+        notifier.cancelVisitReminder(venueID: session.candidate.id)
+        removeNotificationRecord(for: session.candidate.id)
+    }
+
+    private func removeNotificationRecord(for venueID: String) {
+        var log = notificationLog
+        log.removeValue(forKey: venueID)
+        defaults.set(log, forKey: Self.notificationLogKey)
     }
 
     /// Writes only when the session materially changed (audit finding B-03:

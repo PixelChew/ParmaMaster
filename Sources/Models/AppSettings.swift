@@ -19,6 +19,36 @@ enum AppTheme: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 }
 
+enum LocationSuggestionDwellOption: Int, Codable, CaseIterable, Identifiable, Sendable {
+    case minutes10 = 10
+    case minutes15 = 15
+    case minutes20 = 20
+    case minutes30 = 30
+    case minutes40 = 40
+    case minutes60 = 60
+
+    static let `default` = LocationSuggestionDwellOption.minutes15
+
+    var id: Int { rawValue }
+
+    var duration: TimeInterval {
+        TimeInterval(rawValue * 60)
+    }
+
+    var label: String {
+        switch self {
+        case .minutes60:
+            "1 hour"
+        default:
+            "\(rawValue) minutes"
+        }
+    }
+
+    static func sanitized(minutes: Int) -> Int {
+        LocationSuggestionDwellOption(rawValue: minutes)?.rawValue ?? Self.default.rawValue
+    }
+}
+
 struct AppSettingsSnapshot: Codable, Hashable, Sendable {
     var hasCompletedOnboarding = false
     var theme = AppTheme.system
@@ -27,6 +57,7 @@ struct AppSettingsSnapshot: Codable, Hashable, Sendable {
     var photoFeatureEnabled = true
     var locationUseEnabled = false
     var locationRemindersEnabled = false
+    var locationSuggestionDwellMinutes = LocationSuggestionDwellOption.default.rawValue
     var automaticBackupsEnabled = false
     var rerunSuggestionsEnabled = true
     var rerunStaleMonths = 5
@@ -40,6 +71,7 @@ struct AppSettingsSnapshot: Codable, Hashable, Sendable {
         case photoFeatureEnabled
         case locationUseEnabled
         case locationRemindersEnabled
+        case locationSuggestionDwellMinutes
         case automaticBackupsEnabled
         case rerunSuggestionsEnabled
         case rerunStaleMonths
@@ -54,6 +86,7 @@ struct AppSettingsSnapshot: Codable, Hashable, Sendable {
         photoFeatureEnabled: Bool = true,
         locationUseEnabled: Bool = false,
         locationRemindersEnabled: Bool = false,
+        locationSuggestionDwellMinutes: Int = LocationSuggestionDwellOption.default.rawValue,
         automaticBackupsEnabled: Bool = false,
         rerunSuggestionsEnabled: Bool = true,
         rerunStaleMonths: Int = 5,
@@ -66,6 +99,7 @@ struct AppSettingsSnapshot: Codable, Hashable, Sendable {
         self.photoFeatureEnabled = photoFeatureEnabled
         self.locationUseEnabled = locationUseEnabled
         self.locationRemindersEnabled = locationRemindersEnabled
+        self.locationSuggestionDwellMinutes = LocationSuggestionDwellOption.sanitized(minutes: locationSuggestionDwellMinutes)
         self.automaticBackupsEnabled = automaticBackupsEnabled
         self.rerunSuggestionsEnabled = rerunSuggestionsEnabled
         self.rerunStaleMonths = rerunStaleMonths
@@ -81,6 +115,10 @@ struct AppSettingsSnapshot: Codable, Hashable, Sendable {
         photoFeatureEnabled = try container.decodeIfPresent(Bool.self, forKey: .photoFeatureEnabled) ?? true
         locationUseEnabled = try container.decodeIfPresent(Bool.self, forKey: .locationUseEnabled) ?? false
         locationRemindersEnabled = try container.decodeIfPresent(Bool.self, forKey: .locationRemindersEnabled) ?? false
+        locationSuggestionDwellMinutes = LocationSuggestionDwellOption.sanitized(
+            minutes: try container.decodeIfPresent(Int.self, forKey: .locationSuggestionDwellMinutes)
+                ?? LocationSuggestionDwellOption.default.rawValue
+        )
         automaticBackupsEnabled = try container.decodeIfPresent(Bool.self, forKey: .automaticBackupsEnabled) ?? false
         rerunSuggestionsEnabled = try container.decodeIfPresent(Bool.self, forKey: .rerunSuggestionsEnabled) ?? true
         rerunStaleMonths = try container.decodeIfPresent(Int.self, forKey: .rerunStaleMonths) ?? 5
@@ -101,6 +139,16 @@ final class AppSettings {
     var photoFeatureEnabled: Bool { didSet { persist() } }
     var locationUseEnabled: Bool { didSet { persist() } }
     var locationRemindersEnabled: Bool { didSet { persist() } }
+    var locationSuggestionDwellMinutes: Int {
+        didSet {
+            let sanitized = LocationSuggestionDwellOption.sanitized(minutes: locationSuggestionDwellMinutes)
+            if sanitized != locationSuggestionDwellMinutes {
+                locationSuggestionDwellMinutes = sanitized
+                return
+            }
+            persist()
+        }
+    }
     var automaticBackupsEnabled: Bool { didSet { persist() } }
     var rerunSuggestionsEnabled: Bool { didSet { persist() } }
     var rerunStaleMonths: Int { didSet { persist() } }
@@ -122,6 +170,7 @@ final class AppSettings {
         photoFeatureEnabled = stored.photoFeatureEnabled
         locationUseEnabled = stored.locationUseEnabled
         locationRemindersEnabled = stored.locationRemindersEnabled
+        locationSuggestionDwellMinutes = LocationSuggestionDwellOption.sanitized(minutes: stored.locationSuggestionDwellMinutes)
         automaticBackupsEnabled = stored.automaticBackupsEnabled
         rerunSuggestionsEnabled = stored.rerunSuggestionsEnabled
         rerunStaleMonths = stored.rerunStaleMonths
@@ -142,6 +191,7 @@ final class AppSettings {
             photoFeatureEnabled: photoFeatureEnabled,
             locationUseEnabled: locationUseEnabled,
             locationRemindersEnabled: locationRemindersEnabled,
+            locationSuggestionDwellMinutes: locationSuggestionDwellMinutes,
             automaticBackupsEnabled: automaticBackupsEnabled,
             rerunSuggestionsEnabled: rerunSuggestionsEnabled,
             rerunStaleMonths: rerunStaleMonths,
@@ -158,6 +208,9 @@ final class AppSettings {
         photoFeatureEnabled = snapshot.photoFeatureEnabled
         locationUseEnabled = snapshot.locationUseEnabled
         locationRemindersEnabled = snapshot.locationUseEnabled && snapshot.locationRemindersEnabled
+        locationSuggestionDwellMinutes = LocationSuggestionDwellOption.sanitized(
+            minutes: snapshot.locationSuggestionDwellMinutes
+        )
         automaticBackupsEnabled = snapshot.automaticBackupsEnabled
         rerunSuggestionsEnabled = snapshot.rerunSuggestionsEnabled
         rerunStaleMonths = snapshot.rerunStaleMonths
@@ -201,6 +254,10 @@ final class AppSettings {
             defaults.set(data, forKey: Self.storageKey)
         }
         changeHandler?()
+    }
+
+    var locationSuggestionDwellDuration: TimeInterval {
+        TimeInterval(locationSuggestionDwellMinutes * 60)
     }
 }
 

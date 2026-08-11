@@ -8,7 +8,12 @@ import UIKit
 @MainActor
 protocol VisitNotifying: AnyObject {
     var authorizationStatus: UNAuthorizationStatus { get }
-    func scheduleVisitReminder(venue: VenueCandidate, existingEntry: ParmaEntry?) async throws
+    func scheduleVisitReminder(
+        venue: VenueCandidate,
+        existingEntry: ParmaEntry?,
+        delay: TimeInterval
+    ) async throws
+    func cancelVisitReminder(venueID: String)
 }
 
 @MainActor
@@ -32,7 +37,11 @@ final class NotificationService: VisitNotifying {
         }
     }
 
-    func scheduleVisitReminder(venue: VenueCandidate, existingEntry: ParmaEntry?) async throws {
+    func scheduleVisitReminder(
+        venue: VenueCandidate,
+        existingEntry: ParmaEntry?,
+        delay: TimeInterval
+    ) async throws {
         let content = UNMutableNotificationContent()
         content.title = "Parma Master"
         if let existingEntry {
@@ -45,8 +54,18 @@ final class NotificationService: VisitNotifying {
             ]
         }
         content.sound = .default
-        let request = UNNotificationRequest(identifier: "visit-\(venue.id)", content: content, trigger: nil)
+        let trigger: UNNotificationTrigger?
+        if delay > 0 {
+            trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(delay, 1), repeats: false)
+        } else {
+            trigger = nil
+        }
+        let request = UNNotificationRequest(identifier: "visit-\(venue.id)", content: content, trigger: trigger)
         try await center.add(request)
+    }
+
+    func cancelVisitReminder(venueID: String) {
+        center.removePendingNotificationRequests(withIdentifiers: ["visit-\(venueID)"])
     }
 }
 
