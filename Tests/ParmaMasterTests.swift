@@ -27,6 +27,71 @@ final class ParmaMasterTests: XCTestCase {
         let candidates = HomeGreeting.candidates(at: greetingDate(hour: 13), calendar: greetingCalendar)
         XCTAssertTrue(candidates.contains("Monday parma day."))
     }
+
+    func testV1StoreMigratesIntoVenueAndPreservesEntryData() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: "ParmaMasterMigration-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let storeURL = directory.appending(path: "migration.store")
+        let entryID = UUID()
+        let rating = makeRating(parma: 4, chips: 2, salad: 2)
+        let notes = AttributedString("Migration notes")
+        try createV1Store(at: storeURL, entryID: entryID, rating: rating, notes: notes)
+
+        let schema = Schema(versionedSchema: ParmaSchemaV2.self)
+        let configuration = ModelConfiguration("migration", schema: schema, url: storeURL, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: schema, migrationPlan: ParmaMigrationPlan.self, configurations: [configuration])
+        let context = ModelContext(container)
+        let entries = try context.fetch(FetchDescriptor<ParmaEntry>())
+        let venues = try context.fetch(FetchDescriptor<Venue>())
+
+        XCTAssertEqual(entries.count, 1)
+        XCTAssertEqual(venues.count, 1)
+        XCTAssertEqual(entries[0].id, entryID)
+        XCTAssertEqual(entries[0].venue?.id, entryID)
+        XCTAssertEqual(entries[0].currentRating, rating)
+        XCTAssertEqual(entries[0].notes, notes)
+        XCTAssertEqual(entries[0].photoFilename, "migration.jpg")
+    }
+
+    func testLegacyBackupUpgradesToSeparatedVenuePayload() {
+        let legacy = LegacyBackupPayloadV1(
+            schemaVersion: 1,
+            exportedAt: .now,
+            settings: AppSettingsSnapshot(),
+            entries: [LegacyEntryBackupV1(
+                id: UUID(), venueIdentity: "map:one", mapItemIdentifier: "one",
+                venueName: "Backup Hotel", formattedAddress: "1 Test Street",
+                latitude: -37.81, longitude: 144.96, createdAt: .now,
+                currentRatingDate: .now, lastModifiedAt: .now,
+                currentRating: makeRating(parma: 4, chips: 2, salad: 2),
+                notesData: Data(), photoFilename: nil, photoData: nil, revisions: []
+            )]
+        )
+
+        let upgraded = legacy.upgraded()
+        XCTAssertEqual(upgraded.schemaVersion, 2)
+        XCTAssertEqual(upgraded.venues.count, 1)
+        XCTAssertEqual(upgraded.entries.first?.venueID, upgraded.venues.first?.id)
+    }
+
+    func testCurrentUserProfilePersistsDisplayNameLocally() {
+        let suiteName = "CurrentUserProfileTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let profile = CurrentUserProfile(defaults: defaults)
+        XCTAssertEqual(profile.displayName, "Hamish")
+        profile.displayName = "Test User"
+        XCTAssertEqual(CurrentUserProfile(defaults: defaults).displayName, "Test User")
+        XCTAssertTrue(
+            HomeGreeting.candidates(
+                at: greetingDate(hour: 9),
+                calendar: greetingCalendar,
+                displayName: profile.displayName
+            ).contains("Welcome back, Test User.")
+        )
+    }
+
     func testDecimalRatingDerivesTotalAndMaximum() {
         let rating = makeRating(parma: Decimal(string: "4.5")!, chips: 2, salad: Decimal(string: "1.5")!)
         XCTAssertEqual(rating.total, 8)
@@ -229,6 +294,7 @@ final class ParmaMasterTests: XCTestCase {
 
     private var greetingCalendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_AU")
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         return calendar
     }
@@ -239,8 +305,30 @@ final class ParmaMasterTests: XCTestCase {
 
     private func makeContext() throws -> ModelContext {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: ParmaEntry.self, RatingRevision.self, configurations: configuration)
+        let container = try ModelContainer(for: Venue.self, ParmaEntry.self, RatingRevision.self, configurations: configuration)
         return ModelContext(container)
+    }
+
+    private func createV1Store(at url: URL, entryID: UUID, rating: RatingSnapshot, notes: AttributedString) throws {
+        let schema = Schema(versionedSchema: ParmaSchemaV1.self)
+        let configuration = ModelConfiguration("migration", schema: schema, url: url, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let context = ModelContext(container)
+        let revision = ParmaSchemaV1.RatingRevision(
+            id: UUID(), timestamp: .now, ratingData: try JSONEncoder().encode(rating)
+        )
+        let entry = ParmaSchemaV1.ParmaEntry(
+            id: entryID, venueIdentity: "map:migration-place", mapItemIdentifier: "migration-place",
+            venueName: "Migration Hotel", formattedAddress: "1 Test Street",
+            latitude: -37.81, longitude: 144.96, createdAt: .now,
+            currentRatingDate: .now, lastModifiedAt: .now,
+            currentRatingData: try JSONEncoder().encode(rating),
+            notesData: try JSONEncoder().encode(notes), photoFilename: "migration.jpg",
+            revisions: [revision]
+        )
+        revision.entry = entry
+        context.insert(entry)
+        try context.save()
     }
 
     private func makeRating(parma: Decimal, chips: Decimal, salad: Decimal) -> RatingSnapshot {

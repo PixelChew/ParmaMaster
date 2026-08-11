@@ -7,6 +7,7 @@ struct HomeView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(HomeGreetingSession.self) private var homeGreeting
     @Environment(PubDetectionService.self) private var pubDetection
+    @Environment(LocalParmaRepository.self) private var repository
     @Query private var entries: [ParmaEntry]
 
     private var recentEntries: [ParmaEntry] {
@@ -21,7 +22,7 @@ struct HomeView: View {
                         .padding(.top, 16)
 
                     if let candidate = pubDetection.currentCandidate {
-                        let existing = EntryRepository.findExisting(for: candidate, in: entries)
+                        let existing = repository.findExisting(for: candidate, in: entries)
                         VenueSuggestionCard(candidate: candidate, existingEntry: existing)
                     }
 
@@ -81,26 +82,27 @@ struct HomeView: View {
 final class HomeGreetingSession {
     let message: String
 
-    init() {
-        message = HomeGreeting.message()
+    init(displayName: String = "Hamish") {
+        message = HomeGreeting.message(displayName: displayName)
     }
 }
 
 enum HomeGreeting {
     static func message(
+        displayName: String = "Hamish",
         at date: Date = .now,
         calendar: Calendar = .current
     ) -> String {
-        candidates(at: date, calendar: calendar).randomElement()!
+        candidates(at: date, calendar: calendar, displayName: displayName).randomElement()!
     }
 
-    static func candidates(at date: Date, calendar: Calendar) -> [String] {
+    static func candidates(at date: Date, calendar: Calendar, displayName: String = "Hamish") -> [String] {
         let hour = calendar.component(.hour, from: date)
         let day = calendar.weekdaySymbols[calendar.component(.weekday, from: date) - 1]
 
         var greetings = [
             "It's always a good time for a parma.",
-            "Welcome back.",
+            "Welcome back, \(displayName).",
             "Time for a parma?",
             "Parma or parmi?",
             "How do you say it?",
