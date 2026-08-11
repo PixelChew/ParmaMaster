@@ -285,8 +285,16 @@ final class PubDetectionService {
                 return
             }
 
+            let firstDistance = CLLocation(latitude: first.latitude, longitude: first.longitude).distance(from: location)
+            let accuracyAllowance = max(location.horizontalAccuracy, 0)
+            guard max(0, firstDistance - accuracyAllowance) <= LocationTuning.knownVenueGeofenceRadius else {
+                currentCandidate = nil
+                nearbyChoices = []
+                statusMessage = "No clear nearby pub was found."
+                return
+            }
+
             if close.count > 1 {
-                let firstDistance = CLLocation(latitude: first.latitude, longitude: first.longitude).distance(from: location)
                 let secondDistance = CLLocation(latitude: close[1].latitude, longitude: close[1].longitude).distance(from: location)
                 if secondDistance - firstDistance < DetectionTuning.ambiguityMargin {
                     currentCandidate = nil
