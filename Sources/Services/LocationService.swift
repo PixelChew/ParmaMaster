@@ -34,6 +34,7 @@ final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate
     }
 
     private static let venueRegionPrefix = "venue-"
+    private static let pendingVisitRegionIdentifier = "pending-visit"
 
     private let manager = CLLocationManager()
     private var serviceSession: CLServiceSession?
@@ -43,6 +44,7 @@ final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate
     private var monitoringRequested = false
     private var foregroundUpdatesActive = false
     private var monitoredVenues: [MonitoredVenue] = []
+    private var pendingVisitVenue: VenueCandidate?
 
     var authorizationStatus: CLAuthorizationStatus
     var latestLocation: CLLocation?
@@ -53,6 +55,7 @@ final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate
     @ObservationIgnored var onVisitEvent: ((CLLocationCoordinate2D, Bool) -> Void)?
     @ObservationIgnored var onKnownVenueEntry: ((UUID) -> Void)?
     @ObservationIgnored var onKnownVenueExit: ((UUID) -> Void)?
+    @ObservationIgnored var onPendingVisitExit: (() -> Void)?
 
     override init() {
         authorizationStatus = manager.authorizationStatus
@@ -124,6 +127,7 @@ final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate
         guard authorizationStatus == .authorizedAlways else { return }
         manager.startMonitoringVisits()
         syncVenueRegions()
+        syncPendingVisitRegion()
     }
 
     private func stopBackgroundMonitoring() {
@@ -131,6 +135,7 @@ final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate
         monitoringRequested = false
         manager.stopMonitoringVisits()
         removeAllVenueRegions()
+        removePendingVisitRegion()
     }
 
     /// Stops everything. Used by app reset.
@@ -180,6 +185,49 @@ final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate
     private static func venueID(fromRegionIdentifier identifier: String) -> UUID? {
         guard identifier.hasPrefix(venueRegionPrefix) else { return nil }
         return UUID(uuidString: String(identifier.dropFirst(venueRegionPrefix.count)))
+    }
+
+    // MARK: - Pending visit geofence
+
+    /// Reserves one region-monitoring slot for the currently pending dwell.
+    /// This gives delayed reminders a background exit signal even for a newly
+    /// discovered venue that is not part of the saved-venue geofence set.
+    func setPendingVisitVenue(_ venue: VenueCandidate?) {
+        guard pendingVisitVenue != venue else { return }
+        pendingVisitVenue = venue
+        if venue == nil {
+            removePendingVisitRegion()
+        } else {
+            syncPendingVisitRegion()
+        }
+    }
+
+    private func syncPendingVisitRegion() {
+        guard let venue = pendingVisitVenue,
+              monitoringRequested,
+              authorizationStatus == .authorizedAlways
+        else { return }
+
+        if let existing = manager.monitoredRegions.first(where: {
+            $0.identifier == Self.pendingVisitRegionIdentifier
+        }) {
+            manager.stopMonitoring(for: existing)
+        }
+
+        let region = CLCircularRegion(
+            center: venue.coordinate,
+            radius: LocationTuning.knownVenueGeofenceRadius,
+            identifier: Self.pendingVisitRegionIdentifier
+        )
+        region.notifyOnEntry = false
+        region.notifyOnExit = true
+        manager.startMonitoring(for: region)
+    }
+
+    private func removePendingVisitRegion() {
+        for region in manager.monitoredRegions where region.identifier == Self.pendingVisitRegionIdentifier {
+            manager.stopMonitoring(for: region)
+        }
     }
 
     // MARK: - Service session
@@ -247,6 +295,7 @@ final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate
         if authorizationStatus == .authorizedAlways, monitoringRequested {
             manager.startMonitoringVisits()
             syncVenueRegions()
+            syncPendingVisitRegion()
         }
         if authorizationStatus == .denied || authorizationStatus == .restricted {
             lastErrorMessage = "Location access is off. You can still search for venues manually."
@@ -270,6 +319,11 @@ final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate
     }
 
     func locationManager(_ manager: CLLocationManager, didExitRegion region: CLRegion) {
+        if region.identifier == Self.pendingVisitRegionIdentifier {
+            AppLog.location.info("Pending-visit geofence exited")
+            onPendingVisitExit?()
+            return
+        }
         guard let venueID = Self.venueID(fromRegionIdentifier: region.identifier) else { return }
         onKnownVenueExit?(venueID)
     }
