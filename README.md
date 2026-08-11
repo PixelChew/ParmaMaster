@@ -1,12 +1,25 @@
 # Parma Master 1.3
 
-Parma Master is a native, local-first iPhone app built with SwiftUI, SwiftData,
-MapKit, Core Location, UserNotifications, PhotosUI, and UIKit camera/image
-bridges. It targets iOS 26 and has no server, login, analytics, advertising,
-CloudKit, or third-party runtime dependencies.
+A local-first iPhone app for rating, remembering, and discovering great parmas.
+
+Parma Master helps you keep a personal log of venues, rate each parma by its components, add notes and photos, and find places worth returning to. It is built natively for iPhone with SwiftUI and Apple frameworks.
 
 V1.3 Home Refresh adds Home stats, area tracking, and configurable re-run
-suggestions on top of the Insights map and analytics introduced in V1.2.
+suggestions on top of the Insights map and analytics introduced in V1.2. The
+app introduces no server, login, analytics, ads, CloudKit, or third-party
+runtime dependency.
+
+## What you can do
+
+- Record a venue from Apple Maps search or your current location.
+- Rate a parma using configurable categories, scales, and numeric or star-based scoring.
+- Save notes, photos, and the full history of rating changes.
+- Browse your Parma Log, sort by rating or recency, and search venues, addresses, and notes.
+- Get returning-venue and new-venue suggestions based on your configured location behaviour.
+- Receive optional local reminders when you are near a venue worth logging.
+- Edit entries, re-rate venues, manage duplicates, and delete entries with confirmation.
+- Back up and restore entries, rating history, notes, settings, and photos through a user-selected Files folder.
+- Personalise the appearance and scoring behaviour to match how you judge a great parma.
 
 ## V1.3 Home Refresh
 
@@ -28,20 +41,19 @@ suggestions on top of the Insights map and analytics introduced in V1.2.
 
 ## Insights
 
-The Insights tab sits between Parma Log and Settings in the native iOS 26 tab
-bar. It provides:
+Insights is a normal tab between Parma Log and Settings. It includes:
 
-- A selectable MapKit map with one marker per canonical Parma venue. Marker
-  scores are shown on a comparable normalised `/10` scale, and map framing
-  adapts to one or many saved locations.
+- A selectable MapKit map with one marker per canonical venue. Markers show a
+  comparable normalised `/10` score, and the camera frames one or many saved
+  locations automatically.
 - An “At a glance” grid for Parmas logged (with ratings-submitted subtext),
-  average, highest, lowest, areas visited, and Parmas logged this year.
-  Cross-entry comparisons use `currentTotal / currentMaximum`, never raw totals
-  from different rating scales.
-- Highest/lowest venue cards, perfect-score venues, independently normalised
-  component averages, empty and low-data states, invalid-coordinate protection,
-  accessible marker labels, and actions that open the existing Parma Details
-  flow.
+  average rating, highest rating, lowest rating, areas visited, and Parmas
+  logged this year. Cross-entry comparisons use `currentTotal / currentMaximum`,
+  never raw totals from different rating scales.
+- Highest and lowest venue cards, perfect-score venues, and independently
+  normalised Parma, Chips, and Salad averages.
+- Empty and low-data states, invalid-coordinate protection, accessible marker
+  labels, and actions that open the existing Parma Details flow.
 
 Insights values are calculated in memory from current canonical `ParmaEntry`
 records. Historical `RatingRevision` snapshots contribute only to explicitly
@@ -49,110 +61,69 @@ historical metrics such as ratings submitted; they do not create duplicate
 venues or map pins. Derived statistics are not persisted, so they stay correct
 after edits, rerates, deletions, restores, and rating-scale changes.
 
-## Open and run on an iPhone
+## Built with
 
-1. Open `ParmaMaster.xcodeproj` in Xcode beta.
-2. Select the **ParmaMaster** project, then the **ParmaMaster** app target.
-3. Open **Signing & Capabilities**.
-4. Leave **Automatically manage signing** enabled and choose your Personal Team.
-5. Keep `com.fergohamish.ParmaMaster` if Xcode accepts it. If it is unavailable
-   for your team, change it once to another stable reverse-DNS identifier.
-6. Connect and unlock the iPhone, trust the Mac if prompted, and select the
-   iPhone as the run destination.
-7. Enable Developer Mode on the iPhone if iOS requests it, then press **Run**.
-8. If iOS asks you to trust the development certificate, follow the prompt in
-   **Settings > General > VPN & Device Management**, then run again.
+- SwiftUI for the interface
+- SwiftData for local persistence
+- MapKit and Core Location for venue search, area resolution, and location-based suggestions
+- UserNotifications for optional local reminders
+- PhotosUI, UIKit, and the camera for image capture and selection
 
-No paid-program entitlement is required.
+## Requirements
 
-## Configured permissions and capabilities
+- macOS with Xcode 27.0 or later
+- An iPhone or simulator running iOS 26 or later
+- An Apple Developer account for physical-device signing; simulator builds do not require a paid program membership
 
-- Location When In Use, requested explicitly from the onboarding Location button
-  or when location behaviour is enabled.
-- Always/background location, requested as an optional escalation after
-  foreground access; `UIBackgroundModes` contains `location`. With Always access,
-  background delivery uses the standard silent path and does not create a visible
-  `CLBackgroundActivitySession` in the Dynamic Island.
-- Local notification permission, requested from its onboarding button or when
-  reminders are enabled.
-- Camera and photo-library permissions, requested together from their onboarding
-  button. Camera can also be requested when **Take Photo** is chosen.
-- Security-scoped Files directory access for explicit backup and restore.
-- No CloudKit, remote notifications, app groups, server, or analytics entitlement.
+## Run Parma Master
 
-## Architecture
+1. Open `ParmaMaster.xcodeproj` in Xcode.
+2. Select the **ParmaMaster** project and app target.
+3. For a physical iPhone, open **Signing & Capabilities** and select your own Apple Developer team. Simulator builds can usually run without a signing team.
+4. Change the Bundle Identifier to a unique reverse-DNS identifier for your team, such as `com.example.ParmaMaster`. Do not reuse the maintainer’s bundle identifier.
+5. Select an iPhone or iOS simulator as the run destination.
+6. Build and run.
 
-- `ParmaMasterApp` owns the SwiftData container and long-lived services.
-- `ParmaEntry` is one canonical venue; `RatingRevision` stores immutable rating
-  snapshots so scale changes never rewrite history.
-- `EntryRepository` centralises deduplication, edits, re-ratings, and deletion.
-- `PhotoStore` owns resized JPEGs under Application Support. Resizing preserves
-  aspect ratio; all photo surfaces use native aspect-fill cropping.
-- `BackupService` writes a versioned JSON backup containing entries, history,
-  attributed notes, settings, and photo data to a user-selected Files folder.
-- `LocationService` uses Core Location service sessions and standard
-  `CLLocationManager` updates, keeps When In Use updates foreground-only, and
-  enables silent background delivery only when reminders are enabled and Always
-  authorization is granted. `PubDetectionService` then applies
-  dwell, speed, distance, ambiguity, throttle,
-  skip, and departure-rearm rules before suggesting a venue.
-- `AppSettings` persists appearance, rating, photo, location, reminder, and
-  backup preferences locally.
-- `ParmaInsightsCalculator` is the UI-independent analytics layer. It derives
-  normalised overall and component averages, tie-preserving extremes, perfect
-  scores, rating-event totals, revisit counts, and calendar-year metrics.
+On a physical iPhone, Xcode may ask you to enable Developer Mode or trust the development certificate in **Settings > General > VPN & Device Management**.
 
-## Major files and components
+## How the app is organised
 
-- `Sources/App`: app lifecycle, dependency graph, root tabs, sheets, and deep links.
-- `Sources/Models`: settings, canonical entries, rating snapshots/history,
-  backup payloads, and MapKit venue identity.
-- `Sources/Services`: repository, photo ownership, Apple Maps search, backup,
-  notifications, Core Location, and pub-detection policy.
-- `Sources/Features/Onboarding`: welcome and manual Location, Camera & Photos,
-  and Notifications permission controls with live approved-state ticks.
-- `Sources/Features/Home`: recent entries, stats row, re-run suggestions, and
-  new/returning venue suggestions.
-- `Sources/Features/Logger`: venue picker, decimal/category scoring, attributed
-  notes, camera/PhotosPicker/Files images, duplicate handling, edits, and re-rates.
-- `Sources/Features/ParmaLog` and `Sources/Features/Search`: canonical-entry lists,
-  normalised sorting, search across venue/address/note text, and delete flows.
-- `Sources/Features/Details`: current score, components, photo, notes, history,
-  edit, re-rate, and confirmed deletion.
-- `Sources/Features/Insights`: the native map, statistic cards, venue insight
-  cards, empty states, and existing-details routing for selected venues.
-- `Sources/Features/Settings`: appearance, configurable scales/modes/categories,
-  photo/location/reminder behaviour, Home re-run suggestion preferences,
-  backup/restore, and factory reset.
-- `Sources/Shared`: semantic brand styling, DM Serif display typography, score,
-  card, sorting, empty-state, and aspect-fill image components.
-- `Tests` and `UITests`: model/repository/image regressions, Insights calculator
-  cases, tab placement, empty state, and primary UI flow.
+- `Sources/App`: app lifecycle, dependency wiring, navigation, tabs, sheets, and deep links
+- `Sources/Models`: venues, rating snapshots, settings, backup payloads, and venue identity
+- `Sources/Services`: repository, photo storage, Apple Maps search, backups, notifications, location, venue-detection policy, area resolution, and re-run suggestions
+- `Sources/Features/Onboarding`: guided permission setup
+- `Sources/Features/Home`: recent entries, stats row, re-run suggestions, and venue suggestions
+- `Sources/Features/Logger`: venue selection, scoring, notes, photos, duplicates, edits, and re-ratings
+- `Sources/Features/ParmaLog`: the canonical venue list and sorting
+- `Sources/Features/Search`: search across venues, addresses, and notes
+- `Sources/Features/Details`: scores, components, photos, notes, history, editing, deletion, and per-venue re-run opt-out
+- `Sources/Features/Insights`: the native map, statistic cards, venue insight cards, the areas list, empty states, and existing-details routing
+- `Sources/Features/Settings`: appearance, scoring, behaviour, Home re-run suggestion preferences, permissions, backups, and reset controls
+- `Sources/Shared`: brand styling, DM Serif typography, score displays, cards, empty states, and reusable UI components
+- `Tests` and `UITests`: model, repository, backup, rating, migration, re-run suggestion, Insights-calculator, and primary navigation coverage
 
-## Verification completed
+The data model keeps each venue as a canonical entry and stores rating revisions as immutable snapshots. This means changing the scoring configuration does not rewrite historical ratings.
 
-- Clean simulator build succeeds with Xcode 27.0 and an iOS 26 deployment target.
-- The full simulator suite passes, including location-activity policy,
-  migration and backup compatibility, rating validation, historical snapshots,
-  proportional photo resizing, Insights normalisation/tie/perfect-score cases,
-  component averages, and zero-entry behavior.
-- The UI test passes onboarding, verifies the three manual permission controls,
-  visits Home, Parma Log, Insights, Settings, Appearance, Behaviour, and Search,
-  and proves Settings returns to its root after changing tabs on iPhone 17 Pro.
-- The custom DM Serif Display font and the Figma hero asset are present in the
-  built app bundle and were visually checked in the simulator.
+## Verification
 
-The installed simulator runtime is iOS 27.0; an iOS 26 runtime was not available
-on this Mac. Compilation still enforces the iOS 26 minimum deployment target.
+The current V1.3 branch builds against the iOS 26 deployment target and passes
+the full iOS Simulator suite, including V1→V3 migration, backup compatibility,
+re-run suggestion policy, Insights normalisation, tie handling, perfect-score
+detection, component averages, areas aggregation, zero-entry behavior, and the
+Insights tab empty-state UI flow.
 
-## Physical-device checks
+## Permissions
 
-During user testing, verify each onboarding permission prompt and approved tick,
-camera capture, When In Use to Always location escalation, silent background
-location delivery after locking/leaving the app, local notification delivery,
-Apple Maps results at real coordinates, Files bookmarks after relaunch, and
-backup-folder availability after reboot. Background pub detection is
-intentionally best-effort because iOS controls suspension and location delivery.
+Parma Master asks only when a feature needs access:
 
-The AppIcon asset slot is present, but no bespoke app-icon artwork was supplied
-in the Figma source, so custom icon art remains a visual follow-up.
+- Location access for current-location venue search and optional nearby reminders
+- Notifications for optional local reminders
+- Camera and photo library for adding venue photos
+- Files access when you explicitly choose a backup folder
+
+
+## License
+
+Parma Master is available under the Apache License 2.0. See [LICENSE](LICENSE).
+
+The bundled DM Serif Display font is distributed under its own license in [Resources/Fonts/OFL.txt](Resources/Fonts/OFL.txt).

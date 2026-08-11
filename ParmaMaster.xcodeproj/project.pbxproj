@@ -561,7 +561,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.fergohamish.ParmaMasterUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.ParmaMasterUITests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = ParmaMaster;
@@ -578,7 +578,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.fergohamish.ParmaMasterTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.ParmaMasterTests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ParmaMaster.app/ParmaMaster";
@@ -595,7 +595,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.fergohamish.ParmaMasterTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.ParmaMasterTests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ParmaMaster.app/ParmaMaster";
@@ -739,7 +739,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.fergohamish.ParmaMasterUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.ParmaMasterUITests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = ParmaMaster;
@@ -759,7 +759,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.fergohamish.ParmaMaster;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.ParmaMaster;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -778,7 +778,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.fergohamish.ParmaMaster;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.ParmaMaster;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};

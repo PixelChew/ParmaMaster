@@ -24,9 +24,10 @@ struct ParmaMasterApp: App {
             migrationPlan: ParmaMigrationPlan.self
         )
         let notificationService = NotificationService()
+        let currentUser = CurrentUserProfile()
         _settings = State(initialValue: AppSettings())
-        _currentUser = State(initialValue: CurrentUserProfile())
-        _homeGreetingSession = State(initialValue: HomeGreetingSession())
+        _homeGreetingSession = State(initialValue: HomeGreetingSession(displayName: currentUser.displayName))
+        _currentUser = State(initialValue: currentUser)
         _repository = State(initialValue: LocalParmaRepository())
         _router = State(initialValue: AppRouter())
         _photoStore = State(initialValue: PhotoStore())

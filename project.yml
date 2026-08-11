@@ -1,6 +1,6 @@
 name: ParmaMaster
 options:
-  bundleIdPrefix: com.fergohamish
+  bundleIdPrefix: com.example
   deploymentTarget:
     iOS: "26.0"
   createIntermediateGroups: true
@@ -41,7 +41,7 @@ targets:
         UIAppFonts:
           - DMSerifDisplay-Regular.ttf
         UTExportedTypeDeclarations:
-          - UTTypeIdentifier: com.fergohamish.parmamaster.backup
+          - UTTypeIdentifier: com.example.parmamaster.backup
             UTTypeDescription: Parma Master Backup
             UTTypeConformsTo:
               - public.json
@@ -50,7 +50,7 @@ targets:
                 - parmabackup
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.fergohamish.ParmaMaster
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.ParmaMaster
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         GENERATE_INFOPLIST_FILE: false
@@ -67,7 +67,7 @@ targets:
       - target: ParmaMaster
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.fergohamish.ParmaMasterTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.ParmaMasterTests
         GENERATE_INFOPLIST_FILE: true
   ParmaMasterUITests:
     type: bundle.ui-testing
@@ -78,6 +78,6 @@ targets:
       - target: ParmaMaster
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.fergohamish.ParmaMasterUITests
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.ParmaMasterUITests
         GENERATE_INFOPLIST_FILE: true
         TEST_TARGET_NAME: ParmaMaster

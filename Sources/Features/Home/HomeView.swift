@@ -1,6 +1,6 @@
+import Observation
 import SwiftData
 import SwiftUI
-import Observation
 import UIKit
 
 struct HomeView: View {
@@ -179,30 +179,27 @@ private enum WindowSceneMetrics {
 final class HomeGreetingSession {
     let message: String
 
-    init() {
-        message = HomeGreeting.message()
+    init(displayName: String = "Hamish") {
+        message = HomeGreeting.message(displayName: displayName)
     }
 }
 
 enum HomeGreeting {
     static func message(
+        displayName: String = "Hamish",
         at date: Date = .now,
         calendar: Calendar = .current
     ) -> String {
-        candidates(at: date, calendar: calendar).randomElement()!
+        candidates(at: date, calendar: calendar, displayName: displayName).randomElement()!
     }
 
-    static func candidates(at date: Date, calendar: Calendar) -> [String] {
+    static func candidates(at date: Date, calendar: Calendar, displayName: String = "Hamish") -> [String] {
         let hour = calendar.component(.hour, from: date)
-        let weekdayFormatter = DateFormatter()
-        weekdayFormatter.calendar = calendar
-        weekdayFormatter.locale = calendar.locale ?? .current
-        weekdayFormatter.dateFormat = "EEEE"
-        let day = weekdayFormatter.string(from: date)
+        let day = calendar.weekdaySymbols[calendar.component(.weekday, from: date) - 1]
 
         var greetings = [
             "It's always a good time for a parma.",
-            "Welcome back.",
+            "Welcome back, \(displayName).",
             "Time for a parma?",
             "Parma or parmi?",
             "How do you say it?",

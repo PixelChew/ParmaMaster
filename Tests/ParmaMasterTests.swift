@@ -377,7 +377,13 @@ final class ParmaMasterTests: XCTestCase {
         XCTAssertEqual(profile.displayName, "Hamish")
         profile.displayName = "Test User"
         XCTAssertEqual(CurrentUserProfile(defaults: defaults).displayName, "Test User")
-        XCTAssertTrue(HomeGreeting.candidates(at: greetingDate(hour: 9), calendar: greetingCalendar).contains("Welcome back."))
+        XCTAssertTrue(
+            HomeGreeting.candidates(
+                at: greetingDate(hour: 9),
+                calendar: greetingCalendar,
+                displayName: profile.displayName
+            ).contains("Welcome back, Test User.")
+        )
     }
 
     func testHomeGreetingSessionKeepsOneGreetingForItsLifetime() {
@@ -607,6 +613,17 @@ final class ParmaMasterTests: XCTestCase {
         XCTAssertEqual(stored.size.width / stored.size.height, 2, accuracy: 0.001)
     }
 
+    private var greetingCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_AU")
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }
+
+    private func greetingDate(hour: Int) -> Date {
+        greetingCalendar.date(from: DateComponents(year: 2026, month: 8, day: 10, hour: hour))!
+    }
+
     private func makeContext() throws -> ModelContext {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Venue.self, ParmaEntry.self, RatingRevision.self, configurations: configuration)
@@ -693,17 +710,6 @@ final class ParmaMasterTests: XCTestCase {
         context.insert(venue)
         context.insert(entry)
         try context.save()
-    }
-
-    private var greetingCalendar: Calendar {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.locale = Locale(identifier: "en_AU")
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        return calendar
-    }
-
-    private func greetingDate(hour: Int) -> Date {
-        greetingCalendar.date(from: DateComponents(year: 2026, month: 8, day: 10, hour: hour))!
     }
 
     private func makeRating(parma: Decimal, chips: Decimal, salad: Decimal) -> RatingSnapshot {
