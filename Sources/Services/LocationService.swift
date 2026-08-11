@@ -193,20 +193,22 @@ final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate
     /// This gives delayed reminders a background exit signal even for a newly
     /// discovered venue that is not part of the saved-venue geofence set.
     func setPendingVisitVenue(_ venue: VenueCandidate?) {
+        if venue == nil {
+            pendingVisitVenue = nil
+            removePendingVisitRegion()
+            return
+        }
         guard pendingVisitVenue != venue else { return }
         pendingVisitVenue = venue
-        if venue == nil {
-            removePendingVisitRegion()
-        } else {
-            syncPendingVisitRegion()
-        }
+        syncPendingVisitRegion()
     }
 
     private func syncPendingVisitRegion() {
-        guard let venue = pendingVisitVenue,
-              monitoringRequested,
-              authorizationStatus == .authorizedAlways
-        else { return }
+        guard let venue = pendingVisitVenue else {
+            removePendingVisitRegion()
+            return
+        }
+        guard monitoringRequested, authorizationStatus == .authorizedAlways else { return }
 
         if let existing = manager.monitoredRegions.first(where: {
             $0.identifier == Self.pendingVisitRegionIdentifier
