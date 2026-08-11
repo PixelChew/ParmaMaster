@@ -2,8 +2,7 @@ import Foundation
 import os
 
 /// Central loggers so previously-silent failure paths are diagnosable in the
-/// field (audit findings A-05, T-03). Use `Logger`'s privacy annotations for
-/// anything user-identifying.
+/// field. Use `Logger`'s privacy annotations for anything user-identifying.
 enum AppLog {
     private static let subsystem = Bundle.main.bundleIdentifier ?? "ParmaMaster"
 
