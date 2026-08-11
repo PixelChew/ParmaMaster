@@ -1,16 +1,27 @@
 import CoreLocation
 import Foundation
+import Observation
 import SwiftData
 
 @MainActor
-enum EntryRepository {
-    static func findExisting(for venue: VenueCandidate, in entries: [ParmaEntry]) -> ParmaEntry? {
+protocol ParmaRepositoryProtocol: AnyObject {
+    func findExisting(for venue: VenueCandidate, in entries: [ParmaEntry]) -> ParmaEntry?
+    func create(venue: VenueCandidate, rating: RatingSnapshot, notes: AttributedString, photoFilename: String?, in context: ModelContext) throws -> ParmaEntry
+    func update(_ entry: ParmaEntry, venue: VenueCandidate, rating: RatingSnapshot, notes: AttributedString, photoFilename: String?, deliberateRerating: Bool, in context: ModelContext) throws
+    func delete(_ entry: ParmaEntry, photoStore: PhotoStore, in context: ModelContext) throws
+    func reset(photoStore: PhotoStore, in context: ModelContext) throws
+}
+
+@MainActor
+@Observable
+final class LocalParmaRepository: ParmaRepositoryProtocol {
+    func findExisting(for venue: VenueCandidate, in entries: [ParmaEntry]) -> ParmaEntry? {
         entries.first { VenueIdentity.matches(venue, entry: $0) }
     }
 
     @discardableResult
-    static func create(
-        venue: VenueCandidate,
+    func create(
+        venue candidate: VenueCandidate,
         rating: RatingSnapshot,
         notes: AttributedString,
         photoFilename: String?,
@@ -18,17 +29,26 @@ enum EntryRepository {
     ) throws -> ParmaEntry {
         guard rating.hasValidScores else { throw EntryRepositoryError.invalidRating }
         let entries = try context.fetch(FetchDescriptor<ParmaEntry>())
-        if let existing = findExisting(for: venue, in: entries) {
-            return existing
+        if let existing = findExisting(for: candidate, in: entries) { return existing }
+
+        let venues = try context.fetch(FetchDescriptor<Venue>())
+        let venue: Venue
+        if let existingVenue = venues.first(where: { VenueIdentity.matches(candidate, venue: $0) }) {
+            venue = existingVenue
+        } else {
+            venue = Venue(
+                mapItemIdentifier: candidate.mapItemIdentifier,
+                venueIdentity: VenueIdentity.key(for: candidate),
+                name: candidate.name,
+                formattedAddress: candidate.formattedAddress,
+                latitude: candidate.latitude,
+                longitude: candidate.longitude
+            )
+            context.insert(venue)
         }
 
         let entry = ParmaEntry(
-            venueIdentity: VenueIdentity.key(for: venue),
-            mapItemIdentifier: venue.mapItemIdentifier,
-            venueName: venue.name,
-            formattedAddress: venue.formattedAddress,
-            latitude: venue.latitude,
-            longitude: venue.longitude,
+            venue: venue,
             rating: rating,
             notes: notes,
             photoFilename: photoFilename
@@ -38,9 +58,9 @@ enum EntryRepository {
         return entry
     }
 
-    static func update(
+    func update(
         _ entry: ParmaEntry,
-        venue: VenueCandidate,
+        venue candidate: VenueCandidate,
         rating: RatingSnapshot,
         notes: AttributedString,
         photoFilename: String?,
@@ -57,52 +77,79 @@ enum EntryRepository {
             entry.currentRating = rating
         }
 
-        entry.mapItemIdentifier = venue.mapItemIdentifier ?? entry.mapItemIdentifier
-        entry.venueIdentity = VenueIdentity.key(for: venue)
-        entry.venueName = venue.name
-        entry.formattedAddress = venue.formattedAddress
-        entry.latitude = venue.latitude
-        entry.longitude = venue.longitude
+        let currentVenue = entry.venue
+        currentVenue?.mapItemIdentifier = candidate.mapItemIdentifier ?? currentVenue?.mapItemIdentifier
+        currentVenue?.venueIdentity = VenueIdentity.key(for: candidate)
+        currentVenue?.name = candidate.name
+        currentVenue?.formattedAddress = candidate.formattedAddress
+        currentVenue?.latitude = candidate.latitude
+        currentVenue?.longitude = candidate.longitude
         entry.notes = notes
         entry.photoFilename = photoFilename
         entry.lastModifiedAt = .now
         try context.save()
     }
 
-    static func delete(_ entry: ParmaEntry, photoStore: PhotoStore, in context: ModelContext) throws {
-        if let filename = entry.photoFilename {
-            try? photoStore.delete(filename: filename)
-        }
+    func delete(_ entry: ParmaEntry, photoStore: PhotoStore, in context: ModelContext) throws {
+        if let filename = entry.photoFilename { try? photoStore.delete(filename: filename) }
+        let venue = entry.venue
         context.delete(entry)
         try context.save()
+
+        if let venue, venue.entries.isEmpty {
+            context.delete(venue)
+            try context.save()
+        }
     }
 
-    static func reset(photoStore: PhotoStore, in context: ModelContext) throws {
+    func reset(photoStore: PhotoStore, in context: ModelContext) throws {
         let entries = try context.fetch(FetchDescriptor<ParmaEntry>())
-        for entry in entries {
-            context.delete(entry)
-        }
+        for entry in entries { context.delete(entry) }
+        try context.save()
+        let venues = try context.fetch(FetchDescriptor<Venue>())
+        for venue in venues { context.delete(venue) }
         try context.save()
         try photoStore.removeAll()
     }
 }
 
-enum EntryRepositoryError: Error {
-    case invalidRating
+@MainActor
+enum EntryRepository {
+    private static let local = LocalParmaRepository()
+
+    static func findExisting(for venue: VenueCandidate, in entries: [ParmaEntry]) -> ParmaEntry? {
+        local.findExisting(for: venue, in: entries)
+    }
+
+    static func create(venue: VenueCandidate, rating: RatingSnapshot, notes: AttributedString, photoFilename: String?, in context: ModelContext) throws -> ParmaEntry {
+        try local.create(venue: venue, rating: rating, notes: notes, photoFilename: photoFilename, in: context)
+    }
+
+    static func update(_ entry: ParmaEntry, venue: VenueCandidate, rating: RatingSnapshot, notes: AttributedString, photoFilename: String?, deliberateRerating: Bool, in context: ModelContext) throws {
+        try local.update(entry, venue: venue, rating: rating, notes: notes, photoFilename: photoFilename, deliberateRerating: deliberateRerating, in: context)
+    }
+
+    static func delete(_ entry: ParmaEntry, photoStore: PhotoStore, in context: ModelContext) throws {
+        try local.delete(entry, photoStore: photoStore, in: context)
+    }
+
+    static func reset(photoStore: PhotoStore, in context: ModelContext) throws {
+        try local.reset(photoStore: photoStore, in: context)
+    }
 }
+
+enum EntryRepositoryError: Error { case invalidRating }
 
 enum EntrySortField: String, CaseIterable, Identifiable {
     case rating = "Rating"
     case alphabetical = "Alphabetical"
     case dateAdded = "Date Added"
-
     var id: String { rawValue }
 }
 
 enum SortDirection: String, CaseIterable, Identifiable {
     case ascending = "Ascending"
     case descending = "Descending"
-
     var id: String { rawValue }
 }
 

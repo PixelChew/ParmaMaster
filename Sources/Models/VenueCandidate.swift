@@ -45,20 +45,25 @@ enum VenueIdentity {
         return "fallback:\(normalise(venue.name))|\(normalise(venue.formattedAddress))|\(roundedLatitude)|\(roundedLongitude)"
     }
 
-    static func matches(_ venue: VenueCandidate, entry: ParmaEntry) -> Bool {
-        if let candidateID = venue.mapItemIdentifier,
-           let entryID = entry.mapItemIdentifier,
-           candidateID == entryID {
+    static func matches(_ candidate: VenueCandidate, venue: Venue) -> Bool {
+        if let candidateID = candidate.mapItemIdentifier,
+           let venueID = venue.mapItemIdentifier,
+           candidateID == venueID {
             return true
         }
 
-        let sameName = normalise(venue.name) == normalise(entry.venueName)
-        let sameAddress = normalise(venue.formattedAddress) == normalise(entry.formattedAddress)
-        guard sameName, sameAddress || entry.formattedAddress == "Address unavailable" else { return false }
+        let sameName = normalise(candidate.name) == normalise(venue.name)
+        let sameAddress = normalise(candidate.formattedAddress) == normalise(venue.formattedAddress)
+        guard sameName, sameAddress || venue.formattedAddress == "Address unavailable" else { return false }
 
-        let candidateLocation = CLLocation(latitude: venue.latitude, longitude: venue.longitude)
-        let entryLocation = CLLocation(latitude: entry.latitude, longitude: entry.longitude)
-        return candidateLocation.distance(from: entryLocation) <= 100
+        let candidateLocation = CLLocation(latitude: candidate.latitude, longitude: candidate.longitude)
+        let venueLocation = CLLocation(latitude: venue.latitude, longitude: venue.longitude)
+        return candidateLocation.distance(from: venueLocation) <= 100
+    }
+
+    static func matches(_ venue: VenueCandidate, entry: ParmaEntry) -> Bool {
+        guard let storedVenue = entry.venue else { return false }
+        return matches(venue, venue: storedVenue)
     }
 
     static func normalise(_ value: String) -> String {
