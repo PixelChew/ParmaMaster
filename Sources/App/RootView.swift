@@ -118,6 +118,7 @@ private struct MainTabView: View {
     @Environment(AppRouter.self) private var router
     @State private var homeRootID = UUID()
     @State private var logRootID = UUID()
+    @State private var insightsRootID = UUID()
     @State private var settingsRootID = UUID()
     @State private var searchRootID = UUID()
 
@@ -131,6 +132,10 @@ private struct MainTabView: View {
             Tab("Parma Log", systemImage: "book.pages", value: .log) {
                 ParmaLogView()
                     .id(logRootID)
+            }
+            Tab("Insights", systemImage: "chart.bar.xaxis", value: .insights) {
+                InsightsView()
+                    .id(insightsRootID)
             }
             Tab("Settings", systemImage: "gear", value: .settings) {
                 SettingsView()
@@ -147,6 +152,7 @@ private struct MainTabView: View {
             switch previousTab {
             case .home: homeRootID = UUID()
             case .log: logRootID = UUID()
+            case .insights: insightsRootID = UUID()
             case .settings: settingsRootID = UUID()
             case .search: searchRootID = UUID()
             }

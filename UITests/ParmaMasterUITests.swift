@@ -25,6 +25,10 @@ final class ParmaMasterUITests: XCTestCase {
         app.buttons["Parma Log"].tap()
         XCTAssertTrue(app.staticTexts["Your Parma Log is empty"].waitForExistence(timeout: 3))
 
+        app.buttons["Insights"].tap()
+        XCTAssertTrue(app.staticTexts["No parmas on the map yet"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Log a Parma"].exists)
+
         app.buttons["Settings"].tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["Appearance"].exists)
