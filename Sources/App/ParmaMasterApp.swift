@@ -7,6 +7,8 @@ struct ParmaMasterApp: App {
 
     private let modelContainer: ModelContainer
     @State private var settings: AppSettings
+    @State private var currentUser: CurrentUserProfile
+    @State private var repository: LocalParmaRepository
     @State private var router: AppRouter
     @State private var photoStore: PhotoStore
     @State private var backupService: BackupService
@@ -15,9 +17,14 @@ struct ParmaMasterApp: App {
     @State private var pubDetectionService: PubDetectionService
 
     init() {
-        modelContainer = try! ModelContainer(for: ParmaEntry.self, RatingRevision.self)
+        modelContainer = try! ModelContainer(
+            for: Schema(versionedSchema: ParmaSchemaV2.self),
+            migrationPlan: ParmaMigrationPlan.self
+        )
         let notificationService = NotificationService()
         _settings = State(initialValue: AppSettings())
+        _currentUser = State(initialValue: CurrentUserProfile())
+        _repository = State(initialValue: LocalParmaRepository())
         _router = State(initialValue: AppRouter())
         _photoStore = State(initialValue: PhotoStore())
         _backupService = State(initialValue: BackupService())
@@ -31,6 +38,8 @@ struct ParmaMasterApp: App {
             RootView()
                 .modelContainer(modelContainer)
                 .environment(settings)
+                .environment(currentUser)
+                .environment(repository)
                 .environment(router)
                 .environment(photoStore)
                 .environment(backupService)

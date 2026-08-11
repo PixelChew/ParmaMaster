@@ -8,6 +8,7 @@ struct ParmaDetailsView: View {
     @Environment(AppRouter.self) private var router
     @Environment(PhotoStore.self) private var photoStore
     @Environment(BackupService.self) private var backupService
+    @Environment(LocalParmaRepository.self) private var repository
     @State private var showDeleteConfirmation = false
     @State private var errorMessage: String?
 
@@ -92,7 +93,7 @@ struct ParmaDetailsView: View {
 
     private func deleteEntry() {
         do {
-            try EntryRepository.delete(entry, photoStore: photoStore, in: modelContext)
+            try repository.delete(entry, photoStore: photoStore, in: modelContext)
             backupService.markDirty()
             router.presentedDetails = nil
             dismiss()
