@@ -109,6 +109,25 @@ final class AppSettings {
     }
 }
 
+@MainActor
+@Observable
+final class CurrentUserProfile {
+    private static let displayNameKey = "ParmaMaster.CurrentUser.DisplayName"
+    private let defaults: UserDefaults
+
+    var displayName: String {
+        didSet {
+            let cleaned = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+            defaults.set(cleaned.isEmpty ? "Hamish" : cleaned, forKey: Self.displayNameKey)
+        }
+    }
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        displayName = defaults.string(forKey: Self.displayNameKey) ?? "Hamish"
+    }
+}
+
 extension Color {
     init?(hex: String) {
         let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)

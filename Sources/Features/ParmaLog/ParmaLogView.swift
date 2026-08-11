@@ -6,6 +6,7 @@ struct ParmaLogView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(PhotoStore.self) private var photoStore
     @Environment(BackupService.self) private var backupService
+    @Environment(LocalParmaRepository.self) private var repository
     @Query private var entries: [ParmaEntry]
     @State private var sortField = EntrySortField.dateAdded
     @State private var sortDirection = SortDirection.descending
@@ -87,7 +88,7 @@ struct ParmaLogView: View {
     private func deleteEntry() {
         guard let entryToDelete else { return }
         do {
-            try EntryRepository.delete(entryToDelete, photoStore: photoStore, in: modelContext)
+            try repository.delete(entryToDelete, photoStore: photoStore, in: modelContext)
             backupService.markDirty()
             self.entryToDelete = nil
         } catch {

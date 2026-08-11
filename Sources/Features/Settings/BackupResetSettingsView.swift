@@ -9,6 +9,7 @@ struct BackupResetSettingsView: View {
     @Environment(PhotoStore.self) private var photoStore
     @Environment(LocationService.self) private var locationService
     @Environment(PubDetectionService.self) private var pubDetection
+    @Environment(LocalParmaRepository.self) private var repository
     @State private var chooseDirectory = false
     @State private var chooseRestoreFile = false
     @State private var pendingRestoreURL: URL?
@@ -125,7 +126,7 @@ struct BackupResetSettingsView: View {
 
     private func resetApp() {
         do {
-            try EntryRepository.reset(photoStore: photoStore, in: modelContext)
+            try repository.reset(photoStore: photoStore, in: modelContext)
             backupService.clearBackupDirectory()
             pubDetection.clearVisitState()
             locationService.stopUpdates()

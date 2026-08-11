@@ -11,6 +11,7 @@ struct LoggerView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(PhotoStore.self) private var photoStore
     @Environment(BackupService.self) private var backupService
+    @Environment(LocalParmaRepository.self) private var repository
     @Query private var entries: [ParmaEntry]
 
     @State private var mode: LoggerMode
@@ -285,7 +286,7 @@ struct LoggerView: View {
     }
 
     private func selectVenue(_ selected: VenueCandidate) {
-        if mode == .new, let existing = EntryRepository.findExisting(for: selected, in: entries) {
+        if mode == .new, let existing = repository.findExisting(for: selected, in: entries) {
             venue = selected
             duplicateEntry = existing
         } else {
@@ -332,7 +333,7 @@ struct LoggerView: View {
             }
 
             if let editingEntry {
-                try EntryRepository.update(
+                try repository.update(
                     editingEntry,
                     venue: venue,
                     rating: parsedRating,
@@ -342,14 +343,14 @@ struct LoggerView: View {
                     in: modelContext
                 )
             } else {
-                let created = try EntryRepository.create(
+                let created = try repository.create(
                     venue: venue,
                     rating: parsedRating,
                     notes: notes,
                     photoFilename: finalFilename,
                     in: modelContext
                 )
-                if EntryRepository.findExisting(for: venue, in: entries) != nil, !entries.contains(where: { $0.id == created.id }) {
+                if repository.findExisting(for: venue, in: entries) != nil, !entries.contains(where: { $0.id == created.id }) {
                     duplicateEntry = created
                     return
                 }

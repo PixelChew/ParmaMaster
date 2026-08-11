@@ -86,19 +86,25 @@ final class BackupService {
         defer { isWorking = false }
 
         let entries = try context.fetch(FetchDescriptor<ParmaEntry>())
+        let venues = try context.fetch(FetchDescriptor<Venue>())
         let payload = BackupPayload(
-            schemaVersion: 1,
             exportedAt: .now,
             settings: settings.snapshot,
+            venues: venues.map { venue in
+                VenueBackup(
+                    id: venue.id,
+                    mapItemIdentifier: venue.mapItemIdentifier,
+                    venueIdentity: venue.venueIdentity,
+                    name: venue.name,
+                    formattedAddress: venue.formattedAddress,
+                    latitude: venue.latitude,
+                    longitude: venue.longitude
+                )
+            },
             entries: entries.map { entry in
                 EntryBackup(
                     id: entry.id,
-                    venueIdentity: entry.venueIdentity,
-                    mapItemIdentifier: entry.mapItemIdentifier,
-                    venueName: entry.venueName,
-                    formattedAddress: entry.formattedAddress,
-                    latitude: entry.latitude,
-                    longitude: entry.longitude,
+                    venueID: entry.venue?.id ?? entry.id,
                     createdAt: entry.createdAt,
                     currentRatingDate: entry.currentRatingDate,
                     lastModifiedAt: entry.lastModifiedAt,
@@ -166,12 +172,42 @@ final class BackupService {
         guard let readData else { throw BackupError.corrupt }
 
         let payload: BackupPayload
-        do { payload = try decoder().decode(BackupPayload.self, from: readData) }
-        catch { throw BackupError.corrupt }
-        guard payload.schemaVersion == 1 else { throw BackupError.unsupportedSchema }
+        do {
+            let backupDecoder = decoder()
+            let header = try backupDecoder.decode(BackupHeader.self, from: readData)
+            switch header.schemaVersion {
+            case 1:
+                payload = try backupDecoder.decode(LegacyBackupPayloadV1.self, from: readData).upgraded()
+            case BackupPayload.currentSchemaVersion:
+                payload = try backupDecoder.decode(BackupPayload.self, from: readData)
+            default:
+                throw BackupError.unsupportedSchema
+            }
+        } catch let error as BackupError {
+            throw error
+        } catch {
+            throw BackupError.corrupt
+        }
         guard payload.entries.allSatisfy({ $0.currentRating.hasValidScores }) else { throw BackupError.corrupt }
+        guard Set(payload.venues.map(\.id)).count == payload.venues.count,
+              payload.entries.allSatisfy({ entry in payload.venues.contains(where: { $0.id == entry.venueID }) })
+        else { throw BackupError.corrupt }
 
         try EntryRepository.reset(photoStore: photoStore, in: context)
+        var restoredVenues: [UUID: Venue] = [:]
+        for backup in payload.venues {
+            let venue = Venue(
+                id: backup.id,
+                mapItemIdentifier: backup.mapItemIdentifier,
+                venueIdentity: backup.venueIdentity,
+                name: backup.name,
+                formattedAddress: backup.formattedAddress,
+                latitude: backup.latitude,
+                longitude: backup.longitude
+            )
+            restoredVenues[backup.id] = venue
+            context.insert(venue)
+        }
         for backup in payload.entries {
             if let filename = backup.photoFilename, let photoData = backup.photoData {
                 try photoStore.restore(data: photoData, filename: filename)
@@ -180,14 +216,10 @@ final class BackupService {
                 RatingRevision(id: $0.id, timestamp: $0.timestamp, rating: $0.rating)
             }
             let notes = (try? JSONDecoder().decode(AttributedString.self, from: backup.notesData)) ?? AttributedString()
+            guard let venue = restoredVenues[backup.venueID] else { throw BackupError.corrupt }
             let entry = ParmaEntry(
                 id: backup.id,
-                venueIdentity: backup.venueIdentity,
-                mapItemIdentifier: backup.mapItemIdentifier,
-                venueName: backup.venueName,
-                formattedAddress: backup.formattedAddress,
-                latitude: backup.latitude,
-                longitude: backup.longitude,
+                venue: venue,
                 createdAt: backup.createdAt,
                 currentRatingDate: backup.currentRatingDate,
                 lastModifiedAt: backup.lastModifiedAt,
