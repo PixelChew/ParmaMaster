@@ -34,8 +34,8 @@ Parma Master helps you keep a personal log of venues, rate each parma by its com
 
 1. Open `ParmaMaster.xcodeproj` in Xcode.
 2. Select the **ParmaMaster** project and app target.
-3. Open **Signing & Capabilities** and choose your Personal Team.
-4. Keep `com.fergohamish.ParmaMaster` if it is available. Otherwise, replace it with a stable reverse-DNS bundle identifier.
+3. For a physical iPhone, open **Signing & Capabilities** and select your own Apple Developer team. Simulator builds can usually run without a signing team.
+4. Change the Bundle Identifier to a unique reverse-DNS identifier for your team, such as `com.example.ParmaMaster`. Do not reuse the maintainer’s bundle identifier.
 5. Select an iPhone or iOS simulator as the run destination.
 6. Build and run.
 
