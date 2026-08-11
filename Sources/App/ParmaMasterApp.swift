@@ -56,14 +56,19 @@ struct ParmaMasterApp: App {
                 pubDetectionService?.processKnownVenueExit(venueID: venueID)
             }
         }
+        locationService.onPendingVisitExit = { [weak pubDetectionService] in
+            Task { @MainActor in
+                pubDetectionService?.processPendingVisitExit()
+            }
+        }
 
         _store = State(initialValue: store)
         _settings = State(initialValue: settings)
         _homeGreetingSession = State(initialValue: HomeGreetingSession())
         _repository = State(initialValue: repository)
         _router = State(initialValue: AppRouter())
-        _photoStore = State(initialValue: PhotoStore())
-        _backupService = State(initialValue: BackupService())
+        _photoStore = State(initialValue: photoStore)
+        _backupService = State(initialValue: backupService)
         _locationService = State(initialValue: locationService)
         _notificationService = State(initialValue: notificationService)
         _pubDetectionService = State(initialValue: pubDetectionService)
