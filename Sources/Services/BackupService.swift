@@ -1,10 +1,26 @@
 import Foundation
 import Observation
+import os
 import SwiftData
+import UIKit
 import UniformTypeIdentifiers
 
 extension UTType {
     static let parmaBackup = UTType(exportedAs: "com.fergohamish.parmamaster.backup", conformingTo: .json)
+}
+
+/// Everything an `EntryBackup` needs except the photo bytes, which are read
+/// off the main actor inside the detached export task (audit B-06).
+private struct PendingEntryBackup: Sendable {
+    let id: UUID
+    let venueID: UUID
+    let createdAt: Date
+    let currentRatingDate: Date
+    let lastModifiedAt: Date
+    let currentRating: RatingSnapshot
+    let notesData: Data
+    let photoFilename: String?
+    let revisions: [RevisionBackup]
 }
 
 @MainActor
@@ -12,7 +28,7 @@ extension UTType {
 final class BackupService {
     private static let bookmarkKey = "ParmaMaster.BackupDirectoryBookmark"
     private static let lastBackupKey = "ParmaMaster.LastSuccessfulBackup"
-    private static let minimumAutomaticInterval: TimeInterval = 5 * 60
+    private static let lastChangeKey = "ParmaMaster.LastDataChange"
 
     private let defaults: UserDefaults
     private var context: ModelContext?
@@ -28,6 +44,12 @@ final class BackupService {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         lastSuccessfulBackup = defaults.object(forKey: Self.lastBackupKey) as? Date
+        // A change marked before a force-quit must survive the relaunch, or
+        // the automatic backup for it is silently lost forever.
+        if let lastChange = defaults.object(forKey: Self.lastChangeKey) as? Date,
+           lastChange > (lastSuccessfulBackup ?? .distantPast) {
+            isDirty = true
+        }
     }
 
     var hasBackupLocation: Bool {
@@ -58,9 +80,10 @@ final class BackupService {
 
     func markDirty() {
         isDirty = true
+        defaults.set(Date.now, forKey: Self.lastChangeKey)
         debounceTask?.cancel()
         debounceTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(30))
+            try? await Task.sleep(for: BackupTuning.dirtyDebounce)
             guard !Task.isCancelled else { return }
             await self?.performAutomaticBackupIfNeeded()
         }
@@ -68,15 +91,30 @@ final class BackupService {
 
     func performAutomaticBackupIfNeeded() async {
         guard isDirty,
+              !isWorking,
               let settings,
               settings.automaticBackupsEnabled,
               hasBackupLocation,
-              lastSuccessfulBackup.map({ Date.now.timeIntervalSince($0) >= Self.minimumAutomaticInterval }) ?? true
+              lastSuccessfulBackup.map({ Date.now.timeIntervalSince($0) >= BackupTuning.minimumAutomaticInterval }) ?? true
         else { return }
-        try? backupNow()
+
+        // Assertion so iOS grants time when this fires on backgrounding (audit B-06).
+        let taskID = UIApplication.shared.beginBackgroundTask(expirationHandler: nil)
+        defer {
+            if taskID != .invalid {
+                UIApplication.shared.endBackgroundTask(taskID)
+            }
+        }
+
+        do {
+            try await backupNow()
+        } catch {
+            AppLog.backup.error("Automatic backup failed: \(error.localizedDescription, privacy: .public)")
+            statusMessage = "Automatic backup failed. Open Backup & Reset to check the destination."
+        }
     }
 
-    func backupNow() throws {
+    func backupNow() async throws {
         guard let context, let settings, let photoStore else { throw BackupError.notReady }
         let directory = try resolvedDirectoryURL()
         let accessing = directory.startAccessingSecurityScopedResource()
@@ -87,63 +125,92 @@ final class BackupService {
 
         let entries = try context.fetch(FetchDescriptor<ParmaEntry>())
         let venues = try context.fetch(FetchDescriptor<Venue>())
-        let payload = BackupPayload(
-            exportedAt: .now,
-            settings: settings.snapshot,
-            venues: venues.map { venue in
-                VenueBackup(
-                    id: venue.id,
-                    mapItemIdentifier: venue.mapItemIdentifier,
-                    venueIdentity: venue.venueIdentity,
-                    name: venue.name,
-                    formattedAddress: venue.formattedAddress,
-                    latitude: venue.latitude,
-                    longitude: venue.longitude
-                )
-            },
-            entries: entries.map { entry in
-                EntryBackup(
-                    id: entry.id,
-                    venueID: entry.venue?.id ?? entry.id,
-                    createdAt: entry.createdAt,
-                    currentRatingDate: entry.currentRatingDate,
-                    lastModifiedAt: entry.lastModifiedAt,
-                    currentRating: entry.currentRating,
-                    notesData: entry.notesData,
-                    photoFilename: entry.photoFilename,
-                    photoData: entry.photoFilename.flatMap(photoStore.data(for:)),
-                    revisions: entry.sortedRevisions.map {
-                        RevisionBackup(id: $0.id, timestamp: $0.timestamp, rating: $0.rating)
-                    }
-                )
-            }
-        )
-
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-        let data = try encoder.encode(payload)
-        guard (try? decoder().decode(BackupPayload.self, from: data)) != nil else { throw BackupError.validationFailed }
-
-        let destination = directory.appending(path: "Parma Master.parmabackup")
-        let temporary = directory.appending(path: ".Parma Master.parmabackup.tmp")
-        var coordinationError: NSError?
-        var writeError: Error?
-        NSFileCoordinator().coordinate(writingItemAt: destination, options: .forReplacing, error: &coordinationError) { coordinatedURL in
-            do {
-                try data.write(to: temporary, options: .atomic)
-                if FileManager.default.fileExists(atPath: coordinatedURL.path) {
-                    _ = try FileManager.default.replaceItemAt(coordinatedURL, withItemAt: temporary)
-                } else {
-                    try FileManager.default.moveItem(at: temporary, to: coordinatedURL)
-                }
-            } catch {
-                writeError = error
-                try? FileManager.default.removeItem(at: temporary)
-            }
+        let settingsSnapshot = settings.snapshot
+        let exportedAt = Date.now
+        let venueBackups = venues.map { venue in
+            VenueBackup(
+                id: venue.id,
+                mapItemIdentifier: venue.mapItemIdentifier,
+                venueIdentity: venue.venueIdentity,
+                name: venue.name,
+                formattedAddress: venue.formattedAddress,
+                latitude: venue.latitude,
+                longitude: venue.longitude,
+                locality: venue.locality,
+                excludedFromRerun: venue.excludedFromRerun
+            )
         }
-        if let coordinationError { throw coordinationError }
-        if let writeError { throw writeError }
+        let pendingEntries = entries.map { entry in
+            PendingEntryBackup(
+                id: entry.id,
+                venueID: entry.venue?.id ?? entry.id,
+                createdAt: entry.createdAt,
+                currentRatingDate: entry.currentRatingDate,
+                lastModifiedAt: entry.lastModifiedAt,
+                currentRating: entry.currentRating,
+                notesData: entry.notesData,
+                photoFilename: entry.photoFilename,
+                revisions: entry.sortedRevisions.map {
+                    RevisionBackup(id: $0.id, timestamp: $0.timestamp, rating: $0.rating)
+                }
+            )
+        }
+        let diskIO = photoStore.diskIO
+        let destination = directory.appending(path: BackupTuning.backupFilename)
+        let temporary = directory.appending(path: BackupTuning.temporaryFilename)
+
+        // Photo reads, JSON encode and the coordinated write happen off the
+        // main actor; only Sendable values cross into the task (audit B-06).
+        try await Task.detached(priority: .utility) {
+            let payload = BackupPayload(
+                exportedAt: exportedAt,
+                settings: settingsSnapshot,
+                venues: venueBackups,
+                entries: pendingEntries.map { pending in
+                    EntryBackup(
+                        id: pending.id,
+                        venueID: pending.venueID,
+                        createdAt: pending.createdAt,
+                        currentRatingDate: pending.currentRatingDate,
+                        lastModifiedAt: pending.lastModifiedAt,
+                        currentRating: pending.currentRating,
+                        notesData: pending.notesData,
+                        photoFilename: pending.photoFilename,
+                        photoData: pending.photoFilename.flatMap { diskIO.data(for: $0) },
+                        revisions: pending.revisions
+                    )
+                }
+            )
+
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            encoder.dateEncodingStrategy = .iso8601
+            let data = try encoder.encode(payload)
+
+            var coordinationError: NSError?
+            var writeError: Error?
+            NSFileCoordinator().coordinate(writingItemAt: destination, options: .forReplacing, error: &coordinationError) { coordinatedURL in
+                do {
+                    do {
+                        try data.write(to: temporary, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+                    } catch {
+                        // Some File Provider volumes reject protection classes (audit S-01).
+                        AppLog.backup.notice("Protected backup write failed, retrying unprotected: \(error.localizedDescription, privacy: .public)")
+                        try data.write(to: temporary, options: [.atomic])
+                    }
+                    if FileManager.default.fileExists(atPath: coordinatedURL.path) {
+                        _ = try FileManager.default.replaceItemAt(coordinatedURL, withItemAt: temporary)
+                    } else {
+                        try FileManager.default.moveItem(at: temporary, to: coordinatedURL)
+                    }
+                } catch {
+                    writeError = error
+                    try? FileManager.default.removeItem(at: temporary)
+                }
+            }
+            if let coordinationError { throw coordinationError }
+            if let writeError { throw writeError }
+        }.value
 
         let now = Date.now
         defaults.set(now, forKey: Self.lastBackupKey)
@@ -152,7 +219,7 @@ final class BackupService {
         statusMessage = "Backup completed successfully."
     }
 
-    func restore(from source: URL) throws {
+    func restore(from source: URL) async throws {
         guard let context, let settings, let photoStore else { throw BackupError.notReady }
         let accessing = source.startAccessingSecurityScopedResource()
         defer { if accessing { source.stopAccessingSecurityScopedResource() } }
@@ -160,40 +227,45 @@ final class BackupService {
         isWorking = true
         defer { isWorking = false }
 
-        var coordinationError: NSError?
-        var readData: Data?
-        var readError: Error?
-        NSFileCoordinator().coordinate(readingItemAt: source, options: [], error: &coordinationError) { coordinatedURL in
-            do { readData = try Data(contentsOf: coordinatedURL) }
-            catch { readError = error }
-        }
-        if let coordinationError { throw coordinationError }
-        if let readError { throw readError }
-        guard let readData else { throw BackupError.corrupt }
-
-        let payload: BackupPayload
-        do {
-            let backupDecoder = decoder()
-            let header = try backupDecoder.decode(BackupHeader.self, from: readData)
-            switch header.schemaVersion {
-            case 1:
-                payload = try backupDecoder.decode(LegacyBackupPayloadV1.self, from: readData).upgraded()
-            case BackupPayload.currentSchemaVersion:
-                payload = try backupDecoder.decode(BackupPayload.self, from: readData)
-            default:
-                throw BackupError.unsupportedSchema
+        // Coordinated read + JSON decode off the main actor; model writes
+        // stay on the MainActor below (audit B-06).
+        let payload = try await Task.detached(priority: .utility) { () throws -> BackupPayload in
+            var coordinationError: NSError?
+            var readData: Data?
+            var readError: Error?
+            NSFileCoordinator().coordinate(readingItemAt: source, options: [], error: &coordinationError) { coordinatedURL in
+                do { readData = try Data(contentsOf: coordinatedURL) }
+                catch { readError = error }
             }
-        } catch let error as BackupError {
-            throw error
-        } catch {
-            throw BackupError.corrupt
-        }
+            if let coordinationError { throw coordinationError }
+            if let readError { throw readError }
+            guard let readData else { throw BackupError.corrupt }
+
+            do {
+                let backupDecoder = JSONDecoder()
+                backupDecoder.dateDecodingStrategy = .iso8601
+                let header = try backupDecoder.decode(BackupHeader.self, from: readData)
+                switch header.schemaVersion {
+                case 1:
+                    return try backupDecoder.decode(LegacyBackupPayloadV1.self, from: readData).upgraded()
+                case BackupPayload.currentSchemaVersion:
+                    return try backupDecoder.decode(BackupPayload.self, from: readData)
+                default:
+                    throw BackupError.unsupportedSchema
+                }
+            } catch let error as BackupError {
+                throw error
+            } catch {
+                throw BackupError.corrupt
+            }
+        }.value
+
         guard payload.entries.allSatisfy({ $0.currentRating.hasValidScores }) else { throw BackupError.corrupt }
         guard Set(payload.venues.map(\.id)).count == payload.venues.count,
               payload.entries.allSatisfy({ entry in payload.venues.contains(where: { $0.id == entry.venueID }) })
         else { throw BackupError.corrupt }
 
-        try EntryRepository.reset(photoStore: photoStore, in: context)
+        try LocalParmaRepository().reset(photoStore: photoStore, in: context)
         var restoredVenues: [UUID: Venue] = [:]
         for backup in payload.venues {
             let venue = Venue(
@@ -203,7 +275,9 @@ final class BackupService {
                 name: backup.name,
                 formattedAddress: backup.formattedAddress,
                 latitude: backup.latitude,
-                longitude: backup.longitude
+                longitude: backup.longitude,
+                locality: backup.locality,
+                excludedFromRerun: backup.excludedFromRerun
             )
             restoredVenues[backup.id] = venue
             context.insert(venue)
@@ -245,12 +319,6 @@ final class BackupService {
             try chooseBackupDirectory(url)
         }
         return url
-    }
-
-    private func decoder() -> JSONDecoder {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return decoder
     }
 }
 

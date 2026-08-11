@@ -6,6 +6,373 @@ import XCTest
 
 @MainActor
 final class ParmaMasterTests: XCTestCase {
+    func testV1StoreMigratesEntryVenueNotesPhotoTimestampsAndHistory() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: "ParmaMasterMigration-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let storeURL = directory.appending(path: "migration.store")
+        let entryID = UUID()
+        let revisionID = UUID()
+        let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let rating = makeRating(parma: 4, chips: 2, salad: 2)
+        let notes = AttributedString("Migration notes")
+
+        try createV1Store(
+            at: storeURL,
+            entryID: entryID,
+            revisionID: revisionID,
+            createdAt: createdAt,
+            rating: rating,
+            notes: notes
+        )
+
+        let schema = Schema(versionedSchema: ParmaSchemaV3.self)
+        let configuration = ModelConfiguration("migration", schema: schema, url: storeURL, cloudKitDatabase: .none)
+        let container = try ModelContainer(
+            for: schema,
+            migrationPlan: ParmaMigrationPlan.self,
+            configurations: [configuration]
+        )
+        let context = ModelContext(container)
+        let entries = try context.fetch(FetchDescriptor<ParmaEntry>())
+        let venues = try context.fetch(FetchDescriptor<Venue>())
+
+        XCTAssertEqual(entries.count, 1)
+        XCTAssertEqual(venues.count, 1)
+        XCTAssertEqual(entries[0].id, entryID)
+        XCTAssertEqual(entries[0].venue?.id, entryID)
+        XCTAssertEqual(entries[0].venueName, "Migration Hotel")
+        XCTAssertEqual(entries[0].latitude, -37.81)
+        XCTAssertEqual(entries[0].currentRating, rating)
+        XCTAssertEqual(entries[0].notes, notes)
+        XCTAssertEqual(entries[0].photoFilename, "migration.jpg")
+        XCTAssertEqual(entries[0].createdAt, createdAt)
+        XCTAssertEqual(entries[0].revisions.map(\.id), [revisionID])
+        XCTAssertNil(venues[0].locality)
+        XCTAssertFalse(venues[0].excludedFromRerun)
+    }
+
+    func testV2StoreMigratesToV3WithLocalityAndRerunDefaults() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: "ParmaMasterMigrationV2-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let storeURL = directory.appending(path: "migration-v2.store")
+        let entryID = UUID()
+        let venueID = UUID()
+        let revisionID = UUID()
+        let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let rating = makeRating(parma: 4, chips: 2, salad: 2)
+        let notes = AttributedString("V2 migration notes")
+
+        try createV2Store(
+            at: storeURL,
+            entryID: entryID,
+            venueID: venueID,
+            revisionID: revisionID,
+            createdAt: createdAt,
+            rating: rating,
+            notes: notes
+        )
+
+        let schema = Schema(versionedSchema: ParmaSchemaV3.self)
+        let configuration = ModelConfiguration("migration-v2", schema: schema, url: storeURL, cloudKitDatabase: .none)
+        let container = try ModelContainer(
+            for: schema,
+            migrationPlan: ParmaMigrationPlan.self,
+            configurations: [configuration]
+        )
+        let context = ModelContext(container)
+        let entries = try context.fetch(FetchDescriptor<ParmaEntry>())
+        let venues = try context.fetch(FetchDescriptor<Venue>())
+
+        XCTAssertEqual(entries.count, 1)
+        XCTAssertEqual(venues.count, 1)
+        XCTAssertEqual(entries[0].id, entryID)
+        XCTAssertEqual(venues[0].id, venueID)
+        XCTAssertEqual(entries[0].venue?.id, venueID)
+        XCTAssertEqual(entries[0].venueName, "V2 Hotel")
+        XCTAssertEqual(entries[0].latitude, -37.81)
+        XCTAssertEqual(entries[0].currentRating, rating)
+        XCTAssertEqual(entries[0].notes, notes)
+        XCTAssertEqual(entries[0].photoFilename, "v2.jpg")
+        XCTAssertEqual(entries[0].createdAt, createdAt)
+        XCTAssertEqual(entries[0].revisions.map(\.id), [revisionID])
+        XCTAssertNil(venues[0].locality)
+        XCTAssertFalse(venues[0].excludedFromRerun)
+    }
+
+    func testAppSettingsSnapshotMissingRerunKeysUsesDefaults() throws {
+        let json = """
+        {
+          "hasCompletedOnboarding": true,
+          "theme": "Dark",
+          "accentHex": "#112233",
+          "photoFeatureEnabled": false,
+          "locationUseEnabled": true,
+          "locationRemindersEnabled": true,
+          "automaticBackupsEnabled": true
+        }
+        """.data(using: .utf8)!
+
+        let snapshot = try JSONDecoder().decode(AppSettingsSnapshot.self, from: json)
+        XCTAssertTrue(snapshot.hasCompletedOnboarding)
+        XCTAssertEqual(snapshot.theme, .dark)
+        XCTAssertEqual(snapshot.accentHex, "#112233")
+        XCTAssertFalse(snapshot.photoFeatureEnabled)
+        XCTAssertTrue(snapshot.locationUseEnabled)
+        XCTAssertTrue(snapshot.rerunSuggestionsEnabled)
+        XCTAssertEqual(snapshot.rerunStaleMonths, 5)
+        XCTAssertEqual(snapshot.rerunHideMonths, 1)
+    }
+
+    func testVenueBackupRoundtripPreservesLocalityAndExclusion() throws {
+        let venueID = UUID()
+        let original = VenueBackup(
+            id: venueID,
+            mapItemIdentifier: "map-roundtrip",
+            venueIdentity: "map:map-roundtrip",
+            name: "Roundtrip Hotel",
+            formattedAddress: "1 Test Street, Melbourne VIC",
+            latitude: -37.81,
+            longitude: 144.96,
+            locality: "Fitzroy",
+            excludedFromRerun: true
+        )
+
+        let encoded = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(VenueBackup.self, from: encoded)
+
+        XCTAssertEqual(decoded.id, venueID)
+        XCTAssertEqual(decoded.locality, "Fitzroy")
+        XCTAssertTrue(decoded.excludedFromRerun)
+        XCTAssertEqual(decoded.name, "Roundtrip Hotel")
+    }
+
+    func testVenueBackupMissingNewKeysDecodesWithDefaults() throws {
+        let venueID = UUID()
+        let json = """
+        {
+          "id": "\(venueID.uuidString)",
+          "mapItemIdentifier": "map-legacy",
+          "venueIdentity": "map:map-legacy",
+          "name": "Legacy Hotel",
+          "formattedAddress": "1 Test Street, Melbourne VIC",
+          "latitude": -37.81,
+          "longitude": 144.96
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(VenueBackup.self, from: json)
+        XCTAssertEqual(decoded.id, venueID)
+        XCTAssertNil(decoded.locality)
+        XCTAssertFalse(decoded.excludedFromRerun)
+    }
+
+    func testRerunSuggestionRequiresStaleRatingAndRespectsExclusion() {
+        let suiteName = "RerunEligibility-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 8, day: 11))!
+        let settingsSuite = "RerunEligibilitySettings-\(UUID().uuidString)"
+        let settingsDefaults = UserDefaults(suiteName: settingsSuite)!
+        defer { settingsDefaults.removePersistentDomain(forName: settingsSuite) }
+        let settings = AppSettings(defaults: settingsDefaults)
+        settings.rerunSuggestionsEnabled = true
+        settings.rerunStaleMonths = 5
+        settings.rerunHideMonths = 1
+
+        let stale = makeEntry(
+            name: "Stale Pub",
+            rating: makeRating(parma: 4, chips: 2, salad: 2),
+            currentRatingDate: calendar.date(byAdding: .month, value: -6, to: now)!
+        )
+        let fresh = makeEntry(
+            name: "Fresh Pub",
+            rating: makeRating(parma: 4, chips: 2, salad: 2),
+            currentRatingDate: calendar.date(byAdding: .month, value: -1, to: now)!
+        )
+        let excluded = makeEntry(
+            name: "Excluded Pub",
+            rating: makeRating(parma: 4, chips: 2, salad: 2),
+            currentRatingDate: calendar.date(byAdding: .month, value: -8, to: now)!
+        )
+        excluded.venue?.excludedFromRerun = true
+
+        let service = RerunSuggestionService(defaults: defaults, calendar: calendar)
+        service.update(entries: [stale, fresh, excluded], settings: settings, hasLocationCandidate: false, now: now)
+
+        XCTAssertEqual(service.suggestedEntry?.id, stale.id)
+        XCTAssertTrue(service.shouldShowCard)
+    }
+
+    func testRerunSuggestionDismissHidesCardForConfiguredMonths() {
+        let suiteName = "RerunHide-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 8, day: 11))!
+        let settingsSuite = "RerunHideSettings-\(UUID().uuidString)"
+        let settingsDefaults = UserDefaults(suiteName: settingsSuite)!
+        defer { settingsDefaults.removePersistentDomain(forName: settingsSuite) }
+        let settings = AppSettings(defaults: settingsDefaults)
+        settings.rerunHideMonths = 2
+
+        let stale = makeEntry(
+            name: "Hide Pub",
+            rating: makeRating(parma: 4, chips: 2, salad: 2),
+            currentRatingDate: calendar.date(byAdding: .month, value: -6, to: now)!
+        )
+        let service = RerunSuggestionService(defaults: defaults, calendar: calendar)
+        service.update(entries: [stale], settings: settings, hasLocationCandidate: false, now: now)
+        XCTAssertTrue(service.shouldShowCard)
+
+        service.dismiss(settings: settings, now: now)
+        service.update(entries: [stale], settings: settings, hasLocationCandidate: false, now: now)
+        XCTAssertFalse(service.shouldShowCard)
+
+        let stillHidden = calendar.date(byAdding: .month, value: 1, to: now)!
+        service.update(entries: [stale], settings: settings, hasLocationCandidate: false, now: stillHidden)
+        XCTAssertFalse(service.shouldShowCard)
+
+        let visibleAgain = calendar.date(byAdding: .month, value: 2, to: now)!
+        service.update(entries: [stale], settings: settings, hasLocationCandidate: false, now: visibleAgain)
+        XCTAssertTrue(service.shouldShowCard)
+    }
+
+    func testRerunSuggestionAutoHidesAfterSuggestedEntryIsRelogged() {
+        let suiteName = "RerunAutoHide-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 8, day: 11))!
+        let settingsSuite = "RerunAutoHideSettings-\(UUID().uuidString)"
+        let settingsDefaults = UserDefaults(suiteName: settingsSuite)!
+        defer { settingsDefaults.removePersistentDomain(forName: settingsSuite) }
+        let settings = AppSettings(defaults: settingsDefaults)
+        settings.rerunHideMonths = 1
+
+        let ratingDate = calendar.date(byAdding: .month, value: -7, to: now)!
+        let entry = makeEntry(
+            name: "Relog Pub",
+            rating: makeRating(parma: 4, chips: 2, salad: 2),
+            currentRatingDate: ratingDate
+        )
+        let service = RerunSuggestionService(defaults: defaults, calendar: calendar)
+        service.update(entries: [entry], settings: settings, hasLocationCandidate: false, now: now)
+        XCTAssertTrue(service.shouldShowCard)
+
+        entry.currentRatingDate = now
+        service.update(entries: [entry], settings: settings, hasLocationCandidate: false, now: now)
+        XCTAssertFalse(service.shouldShowCard)
+    }
+
+    func testRerunSuggestionYieldsToLocationCandidate() {
+        let suiteName = "RerunYield-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 8, day: 11))!
+        let settingsSuite = "RerunYieldSettings-\(UUID().uuidString)"
+        let settingsDefaults = UserDefaults(suiteName: settingsSuite)!
+        defer { settingsDefaults.removePersistentDomain(forName: settingsSuite) }
+        let settings = AppSettings(defaults: settingsDefaults)
+
+        let stale = makeEntry(
+            name: "Yield Pub",
+            rating: makeRating(parma: 4, chips: 2, salad: 2),
+            currentRatingDate: calendar.date(byAdding: .month, value: -6, to: now)!
+        )
+        let service = RerunSuggestionService(defaults: defaults, calendar: calendar)
+        service.update(entries: [stale], settings: settings, hasLocationCandidate: true, now: now)
+        XCTAssertNotNil(service.suggestedEntry)
+        XCTAssertFalse(service.shouldShowCard)
+    }
+
+    func testRerunGapFormattingUsesMonthsAndYears() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 8, day: 11))!
+
+        XCTAssertEqual(
+            RerunSuggestionService.formatGap(
+                from: calendar.date(byAdding: .month, value: -5, to: now)!,
+                to: now,
+                calendar: calendar
+            ),
+            "5 months"
+        )
+        XCTAssertEqual(
+            RerunSuggestionService.formatGap(
+                from: calendar.date(byAdding: .month, value: -1, to: now)!,
+                to: now,
+                calendar: calendar
+            ),
+            "1 month"
+        )
+        XCTAssertEqual(
+            RerunSuggestionService.formatGap(
+                from: calendar.date(byAdding: .year, value: -1, to: now)!,
+                to: now,
+                calendar: calendar
+            ),
+            "1 year"
+        )
+        XCTAssertEqual(
+            RerunSuggestionService.formatGap(
+                from: calendar.date(byAdding: .year, value: -2, to: now)!,
+                to: now,
+                calendar: calendar
+            ),
+            "2 years"
+        )
+    }
+
+    func testLegacyBackupUpgradesToSeparatedVenuePayload() throws {
+        let entry = makeEntry(name: "Backup Hotel", rating: makeRating(parma: 4, chips: 2, salad: 2))
+        let legacy = LegacyBackupPayloadV1(
+            schemaVersion: 1,
+            exportedAt: .now,
+            settings: AppSettingsSnapshot(),
+            entries: [LegacyEntryBackupV1(
+                id: entry.id,
+                venueIdentity: entry.venueIdentity,
+                mapItemIdentifier: entry.mapItemIdentifier,
+                venueName: entry.venueName,
+                formattedAddress: entry.formattedAddress,
+                latitude: entry.latitude,
+                longitude: entry.longitude,
+                createdAt: entry.createdAt,
+                currentRatingDate: entry.currentRatingDate,
+                lastModifiedAt: entry.lastModifiedAt,
+                currentRating: entry.currentRating,
+                notesData: entry.notesData,
+                photoFilename: "backup.jpg",
+                photoData: Data([1, 2, 3]),
+                revisions: []
+            )]
+        )
+
+        let upgraded = legacy.upgraded()
+        XCTAssertEqual(upgraded.schemaVersion, 2)
+        XCTAssertEqual(upgraded.venues.count, 1)
+        XCTAssertEqual(upgraded.entries.first?.venueID, upgraded.venues.first?.id)
+        XCTAssertEqual(upgraded.entries.first?.photoData, Data([1, 2, 3]))
+    }
+
+    func testHomeGreetingSessionKeepsOneGreetingForItsLifetime() {
+        let session = HomeGreetingSession()
+        XCTAssertEqual(session.message, session.message)
+    }
+
     func testHomeGreetingCandidatesRespectTimeOfDay() {
         let morning = HomeGreeting.candidates(at: greetingDate(hour: 9), calendar: greetingCalendar)
         XCTAssertTrue(morning.contains("Good morning."))
@@ -26,70 +393,6 @@ final class ParmaMasterTests: XCTestCase {
     func testHomeGreetingIncludesTheCurrentDayName() {
         let candidates = HomeGreeting.candidates(at: greetingDate(hour: 13), calendar: greetingCalendar)
         XCTAssertTrue(candidates.contains("Monday parma day."))
-    }
-
-    func testV1StoreMigratesIntoVenueAndPreservesEntryData() throws {
-        let directory = FileManager.default.temporaryDirectory.appending(path: "ParmaMasterMigration-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let storeURL = directory.appending(path: "migration.store")
-        let entryID = UUID()
-        let rating = makeRating(parma: 4, chips: 2, salad: 2)
-        let notes = AttributedString("Migration notes")
-        try createV1Store(at: storeURL, entryID: entryID, rating: rating, notes: notes)
-
-        let schema = Schema(versionedSchema: ParmaSchemaV2.self)
-        let configuration = ModelConfiguration("migration", schema: schema, url: storeURL, cloudKitDatabase: .none)
-        let container = try ModelContainer(for: schema, migrationPlan: ParmaMigrationPlan.self, configurations: [configuration])
-        let context = ModelContext(container)
-        let entries = try context.fetch(FetchDescriptor<ParmaEntry>())
-        let venues = try context.fetch(FetchDescriptor<Venue>())
-
-        XCTAssertEqual(entries.count, 1)
-        XCTAssertEqual(venues.count, 1)
-        XCTAssertEqual(entries[0].id, entryID)
-        XCTAssertEqual(entries[0].venue?.id, entryID)
-        XCTAssertEqual(entries[0].currentRating, rating)
-        XCTAssertEqual(entries[0].notes, notes)
-        XCTAssertEqual(entries[0].photoFilename, "migration.jpg")
-    }
-
-    func testLegacyBackupUpgradesToSeparatedVenuePayload() {
-        let legacy = LegacyBackupPayloadV1(
-            schemaVersion: 1,
-            exportedAt: .now,
-            settings: AppSettingsSnapshot(),
-            entries: [LegacyEntryBackupV1(
-                id: UUID(), venueIdentity: "map:one", mapItemIdentifier: "one",
-                venueName: "Backup Hotel", formattedAddress: "1 Test Street",
-                latitude: -37.81, longitude: 144.96, createdAt: .now,
-                currentRatingDate: .now, lastModifiedAt: .now,
-                currentRating: makeRating(parma: 4, chips: 2, salad: 2),
-                notesData: Data(), photoFilename: nil, photoData: nil, revisions: []
-            )]
-        )
-
-        let upgraded = legacy.upgraded()
-        XCTAssertEqual(upgraded.schemaVersion, 2)
-        XCTAssertEqual(upgraded.venues.count, 1)
-        XCTAssertEqual(upgraded.entries.first?.venueID, upgraded.venues.first?.id)
-    }
-
-    func testCurrentUserProfilePersistsDisplayNameLocally() {
-        let suiteName = "CurrentUserProfileTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let profile = CurrentUserProfile(defaults: defaults)
-        XCTAssertEqual(profile.displayName, "Hamish")
-        profile.displayName = "Test User"
-        XCTAssertEqual(CurrentUserProfile(defaults: defaults).displayName, "Test User")
-        XCTAssertTrue(
-            HomeGreeting.candidates(
-                at: greetingDate(hour: 9),
-                calendar: greetingCalendar,
-                displayName: profile.displayName
-            ).contains("Welcome back, Test User.")
-        )
     }
 
     func testDecimalRatingDerivesTotalAndMaximum() {
@@ -118,51 +421,74 @@ final class ParmaMasterTests: XCTestCase {
         XCTAssertTrue(RatingSnapshot.blank(configuration: configuration).enabledComponents.allSatisfy { $0.displayMode == .stars })
     }
 
-    func testLocationActivityRequiresEnabledRemindersAndAlwaysAuthorizationForBackground() {
+    func testLocationActivityPlanIsStoppedWheneverLocationUseIsDisabled() {
         XCTAssertEqual(
-            LocationActivityPolicy.mode(
-                locationUseEnabled: true,
+            LocationActivityPolicy.plan(
+                locationUseEnabled: false,
+                remindersEnabled: true,
+                authorizationStatus: .authorizedAlways,
+                sceneIsActive: true
+            ),
+            .stopped
+        )
+        XCTAssertEqual(
+            LocationActivityPolicy.plan(
+                locationUseEnabled: false,
                 remindersEnabled: false,
-                authorizationStatus: .authorizedAlways,
+                authorizationStatus: .denied,
                 sceneIsActive: false
             ),
             .stopped
-        )
-        XCTAssertEqual(
-            LocationActivityPolicy.mode(
-                locationUseEnabled: true,
-                remindersEnabled: true,
-                authorizationStatus: .authorizedWhenInUse,
-                sceneIsActive: false
-            ),
-            .stopped
-        )
-        XCTAssertEqual(
-            LocationActivityPolicy.mode(
-                locationUseEnabled: true,
-                remindersEnabled: true,
-                authorizationStatus: .authorizedAlways,
-                sceneIsActive: false
-            ),
-            .background
         )
     }
 
-    func testLocationActivityUsesForegroundUpdatesOnlyWhileSceneIsActive() {
-        XCTAssertEqual(
-            LocationActivityPolicy.mode(
-                locationUseEnabled: true,
-                remindersEnabled: false,
-                authorizationStatus: .authorizedWhenInUse,
-                sceneIsActive: true
-            ),
-            .foreground
+    func testLocationActivityPlanEnablesBackgroundMonitoringWithRemindersAndAlwaysAuthorization() {
+        let backgroundOnly = LocationActivityPolicy.plan(
+            locationUseEnabled: true,
+            remindersEnabled: true,
+            authorizationStatus: .authorizedAlways,
+            sceneIsActive: false
         )
+        XCTAssertTrue(backgroundOnly.backgroundMonitoring)
+        XCTAssertFalse(backgroundOnly.continuousForegroundUpdates)
+
+        let sceneActive = LocationActivityPolicy.plan(
+            locationUseEnabled: true,
+            remindersEnabled: true,
+            authorizationStatus: .authorizedAlways,
+            sceneIsActive: true
+        )
+        XCTAssertTrue(sceneActive.backgroundMonitoring)
+        XCTAssertTrue(sceneActive.continuousForegroundUpdates)
+    }
+
+    func testLocationActivityPlanWithWhenInUseAuthorizationIsForegroundOnly() {
+        let sceneActive = LocationActivityPolicy.plan(
+            locationUseEnabled: true,
+            remindersEnabled: true,
+            authorizationStatus: .authorizedWhenInUse,
+            sceneIsActive: true
+        )
+        XCTAssertFalse(sceneActive.backgroundMonitoring)
+        XCTAssertTrue(sceneActive.continuousForegroundUpdates)
+
         XCTAssertEqual(
-            LocationActivityPolicy.mode(
+            LocationActivityPolicy.plan(
+                locationUseEnabled: true,
+                remindersEnabled: true,
+                authorizationStatus: .authorizedWhenInUse,
+                sceneIsActive: false
+            ),
+            .stopped
+        )
+    }
+
+    func testLocationActivityPlanWithoutRemindersStopsWhenSceneIsInactive() {
+        XCTAssertEqual(
+            LocationActivityPolicy.plan(
                 locationUseEnabled: true,
                 remindersEnabled: false,
-                authorizationStatus: .authorizedWhenInUse,
+                authorizationStatus: .authorizedAlways,
                 sceneIsActive: false
             ),
             .stopped
@@ -171,9 +497,10 @@ final class ParmaMasterTests: XCTestCase {
 
     func testRepositoryRejectsAnOverMaximumRating() throws {
         let context = try makeContext()
+        let repository = LocalParmaRepository()
 
         XCTAssertThrowsError(
-            try EntryRepository.create(
+            try repository.create(
                 venue: venue(name: "Invalid Rating Pub"),
                 rating: makeRating(parma: 6, chips: 2, salad: 2),
                 notes: AttributedString(),
@@ -203,11 +530,12 @@ final class ParmaMasterTests: XCTestCase {
 
     func testChangingRatingArchivesPreviousSnapshot() throws {
         let context = try makeContext()
+        let repository = LocalParmaRepository()
         let entry = makeEntry(name: "The Test Pub", rating: makeRating(parma: 4, chips: 2, salad: 2))
         context.insert(entry)
         try context.save()
 
-        try EntryRepository.update(
+        try repository.update(
             entry,
             venue: venue(name: "The Test Pub"),
             rating: makeRating(parma: Decimal(string: "4.5")!, chips: 2, salad: 2),
@@ -224,12 +552,13 @@ final class ParmaMasterTests: XCTestCase {
 
     func testChangingOnlyNotesDoesNotCreateHistory() throws {
         let context = try makeContext()
+        let repository = LocalParmaRepository()
         let rating = makeRating(parma: 4, chips: 2, salad: 2)
         let entry = makeEntry(name: "The Notes Pub", rating: rating)
         context.insert(entry)
         try context.save()
 
-        try EntryRepository.update(
+        try repository.update(
             entry,
             venue: venue(name: "The Notes Pub"),
             rating: rating,
@@ -241,6 +570,125 @@ final class ParmaMasterTests: XCTestCase {
 
         XCTAssertTrue(entry.revisions.isEmpty)
         XCTAssertEqual(entry.searchableNotes, "Corrected note")
+    }
+
+    func testFindExistingReturnsTheSeededEntryForTheSameCandidate() throws {
+        let context = try makeContext()
+        let repository = LocalParmaRepository()
+        let candidate = venue(name: "Lookup Hotel")
+        let created = try repository.create(
+            venue: candidate,
+            rating: makeRating(parma: 4, chips: 2, salad: 2),
+            notes: AttributedString(),
+            photoFilename: nil,
+            in: context
+        )
+
+        let found = try XCTUnwrap(repository.findExisting(for: candidate, in: context))
+        XCTAssertEqual(found.id, created.id)
+    }
+
+    func testFindExistingPrefersMapIdentifierOverAChangedName() throws {
+        let context = try makeContext()
+        let repository = LocalParmaRepository()
+        let original = venue(name: "Identifier Hotel")
+        let created = try repository.create(
+            venue: original,
+            rating: makeRating(parma: 4, chips: 2, salad: 2),
+            notes: AttributedString(),
+            photoFilename: nil,
+            in: context
+        )
+
+        let renamed = VenueCandidate(
+            mapItemIdentifier: original.mapItemIdentifier,
+            name: "Rebranded Identifier Hotel",
+            formattedAddress: "2 Different Street, Melbourne VIC",
+            latitude: original.latitude,
+            longitude: original.longitude
+        )
+
+        let found = try XCTUnwrap(repository.findExisting(for: renamed, in: context))
+        XCTAssertEqual(found.id, created.id)
+    }
+
+    func testFindExistingMatchesFallbackIdentityWithoutMapIdentifier() throws {
+        let context = try makeContext()
+        let repository = LocalParmaRepository()
+        let seeded = VenueCandidate(
+            mapItemIdentifier: nil,
+            name: "Fallback Arms",
+            formattedAddress: "9 Fallback Lane, Melbourne VIC",
+            latitude: -37.812345,
+            longitude: 144.961234
+        )
+        let created = try repository.create(
+            venue: seeded,
+            rating: makeRating(parma: 4, chips: 2, salad: 2),
+            notes: AttributedString(),
+            photoFilename: nil,
+            in: context
+        )
+
+        // Same name and address, a few tens of metres away, so the coordinates
+        // still round to the same three-decimal fallback key.
+        let lookup = VenueCandidate(
+            mapItemIdentifier: nil,
+            name: "Fallback Arms",
+            formattedAddress: "9 Fallback Lane, Melbourne VIC",
+            latitude: -37.81201,
+            longitude: 144.96149
+        )
+
+        let found = try XCTUnwrap(repository.findExisting(for: lookup, in: context))
+        XCTAssertEqual(found.id, created.id)
+    }
+
+    func testFindExistingReturnsNilForAnUnrelatedCandidate() throws {
+        let context = try makeContext()
+        let repository = LocalParmaRepository()
+        try repository.create(
+            venue: venue(name: "Somewhere Hotel"),
+            rating: makeRating(parma: 4, chips: 2, salad: 2),
+            notes: AttributedString(),
+            photoFilename: nil,
+            in: context
+        )
+
+        let unrelated = VenueCandidate(
+            mapItemIdentifier: "map-unrelated",
+            name: "Unrelated Tavern",
+            formattedAddress: "500 Elsewhere Road, Sydney NSW",
+            latitude: -33.87,
+            longitude: 151.21
+        )
+
+        XCTAssertNil(try repository.findExisting(for: unrelated, in: context))
+    }
+
+    func testCreateTwiceWithTheSameCandidateReturnsTheExistingEntry() throws {
+        let context = try makeContext()
+        let repository = LocalParmaRepository()
+        let candidate = venue(name: "Dedup Hotel")
+        let rating = makeRating(parma: 4, chips: 2, salad: 2)
+
+        let first = try repository.create(
+            venue: candidate,
+            rating: rating,
+            notes: AttributedString(),
+            photoFilename: nil,
+            in: context
+        )
+        let second = try repository.create(
+            venue: candidate,
+            rating: rating,
+            notes: AttributedString(),
+            photoFilename: nil,
+            in: context
+        )
+
+        XCTAssertEqual(first.id, second.id)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<ParmaEntry>()).count, 1)
     }
 
     func testVenueIdentityPrefersMapIdentifierAndFallbackUsesProximity() {
@@ -309,24 +757,84 @@ final class ParmaMasterTests: XCTestCase {
         return ModelContext(container)
     }
 
-    private func createV1Store(at url: URL, entryID: UUID, rating: RatingSnapshot, notes: AttributedString) throws {
+    private func createV1Store(
+        at url: URL,
+        entryID: UUID,
+        revisionID: UUID,
+        createdAt: Date,
+        rating: RatingSnapshot,
+        notes: AttributedString
+    ) throws {
         let schema = Schema(versionedSchema: ParmaSchemaV1.self)
         let configuration = ModelConfiguration("migration", schema: schema, url: url, cloudKitDatabase: .none)
         let container = try ModelContainer(for: schema, configurations: [configuration])
         let context = ModelContext(container)
         let revision = ParmaSchemaV1.RatingRevision(
-            id: UUID(), timestamp: .now, ratingData: try JSONEncoder().encode(rating)
+            id: revisionID,
+            timestamp: createdAt,
+            ratingData: try JSONEncoder().encode(rating)
         )
         let entry = ParmaSchemaV1.ParmaEntry(
-            id: entryID, venueIdentity: "map:migration-place", mapItemIdentifier: "migration-place",
-            venueName: "Migration Hotel", formattedAddress: "1 Test Street",
-            latitude: -37.81, longitude: 144.96, createdAt: .now,
-            currentRatingDate: .now, lastModifiedAt: .now,
+            id: entryID,
+            venueIdentity: "map:migration-place",
+            mapItemIdentifier: "migration-place",
+            venueName: "Migration Hotel",
+            formattedAddress: "1 Test Street, Melbourne VIC",
+            latitude: -37.81,
+            longitude: 144.96,
+            createdAt: createdAt,
+            currentRatingDate: createdAt.addingTimeInterval(10),
+            lastModifiedAt: createdAt.addingTimeInterval(20),
             currentRatingData: try JSONEncoder().encode(rating),
-            notesData: try JSONEncoder().encode(notes), photoFilename: "migration.jpg",
+            notesData: try JSONEncoder().encode(notes),
+            photoFilename: "migration.jpg",
             revisions: [revision]
         )
         revision.entry = entry
+        context.insert(entry)
+        try context.save()
+    }
+
+    private func createV2Store(
+        at url: URL,
+        entryID: UUID,
+        venueID: UUID,
+        revisionID: UUID,
+        createdAt: Date,
+        rating: RatingSnapshot,
+        notes: AttributedString
+    ) throws {
+        let schema = Schema(versionedSchema: ParmaSchemaV2.self)
+        let configuration = ModelConfiguration("migration-v2", schema: schema, url: url, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let context = ModelContext(container)
+        let venue = ParmaSchemaV2.Venue(
+            id: venueID,
+            mapItemIdentifier: "v2-place",
+            venueIdentity: "map:v2-place",
+            name: "V2 Hotel",
+            formattedAddress: "1 Test Street, Melbourne VIC",
+            latitude: -37.81,
+            longitude: 144.96
+        )
+        let revision = ParmaSchemaV2.RatingRevision(
+            id: revisionID,
+            timestamp: createdAt,
+            rating: rating
+        )
+        let entry = ParmaSchemaV2.ParmaEntry(
+            id: entryID,
+            venue: venue,
+            createdAt: createdAt,
+            currentRatingDate: createdAt.addingTimeInterval(10),
+            lastModifiedAt: createdAt.addingTimeInterval(20),
+            rating: rating,
+            notes: notes,
+            photoFilename: "v2.jpg",
+            revisions: [revision]
+        )
+        revision.entry = entry
+        context.insert(venue)
         context.insert(entry)
         try context.save()
     }
@@ -352,7 +860,11 @@ final class ParmaMasterTests: XCTestCase {
         )
     }
 
-    private func makeEntry(name: String, rating: RatingSnapshot) -> ParmaEntry {
+    private func makeEntry(
+        name: String,
+        rating: RatingSnapshot,
+        currentRatingDate: Date = .now
+    ) -> ParmaEntry {
         let candidate = venue(name: name)
         return ParmaEntry(
             venueIdentity: VenueIdentity.key(for: candidate),
@@ -361,6 +873,7 @@ final class ParmaMasterTests: XCTestCase {
             formattedAddress: candidate.formattedAddress,
             latitude: candidate.latitude,
             longitude: candidate.longitude,
+            currentRatingDate: currentRatingDate,
             rating: rating
         )
     }

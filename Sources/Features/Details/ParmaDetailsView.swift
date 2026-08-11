@@ -13,6 +13,9 @@ struct ParmaDetailsView: View {
     @State private var errorMessage: String?
 
     var body: some View {
+        // Hoisted so the rating reads and revision sort run once per render (audit P-01 follow-up).
+        let rating = entry.currentRating
+        let revisions = entry.sortedRevisions
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 20) {
                 StoredPhotoView(filename: entry.photoFilename)
@@ -23,18 +26,28 @@ struct ParmaDetailsView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
+                if entry.venue?.excludedFromRerun == true {
+                    Label("Not shown in re-run suggestions", systemImage: "eye.slash")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(Color(.tertiarySystemFill), in: .capsule)
+                        .accessibilityLabel("This place is not shown in re-run suggestions")
+                }
+
                 Text("Your ranking")
                     .font(BrandStyle.displayFont(35, relativeTo: .title))
                     .accessibilityAddTraits(.isHeader)
 
                 ScoreDisplay(
-                    score: entry.currentRating.total,
-                    maximum: entry.currentRating.maximum,
-                    mode: entry.currentRating.overallDisplayMode,
+                    score: rating.total,
+                    maximum: rating.maximum,
+                    mode: rating.overallDisplayMode,
                     size: 51
                 )
 
-                ForEach(entry.currentRating.enabledComponents) { component in
+                ForEach(rating.enabledComponents) { component in
                     ComponentScoreRow(component: component)
                 }
 
@@ -47,8 +60,8 @@ struct ParmaDetailsView: View {
                     .brandCard()
                 }
 
-                if !entry.revisions.isEmpty {
-                    HistorySection(revisions: entry.sortedRevisions)
+                if !revisions.isEmpty {
+                    HistorySection(revisions: revisions)
                 }
 
                 Button("Delete Entry", systemImage: "trash", role: .destructive) {
@@ -69,6 +82,16 @@ struct ParmaDetailsView: View {
                 Menu {
                     Button("Edit Entry", systemImage: "pencil") { router.edit(entry) }
                     Button("Rate Again", systemImage: "arrow.clockwise") { router.rateAgain(entry) }
+                    if let venue = entry.venue {
+                        Button(
+                            venue.excludedFromRerun
+                                ? "Include in re-run suggestions"
+                                : "Do not suggest this place for a re-run",
+                            systemImage: venue.excludedFromRerun ? "arrow.triangle.2.circlepath" : "eye.slash"
+                        ) {
+                            toggleRerunExclusion(for: venue)
+                        }
+                    }
                 } label: {
                     Text("Edit")
                 }
@@ -81,7 +104,7 @@ struct ParmaDetailsView: View {
         } message: {
             Text("This permanently deletes the entry, all rating history, notes and its locally stored photo.")
         }
-        .alert("Couldn’t Delete Entry", isPresented: Binding(
+        .alert("Couldn’t Update Entry", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
         )) {
@@ -91,11 +114,22 @@ struct ParmaDetailsView: View {
         }
     }
 
+    private func toggleRerunExclusion(for venue: Venue) {
+        venue.excludedFromRerun.toggle()
+        do {
+            try modelContext.save()
+            backupService.markDirty()
+        } catch {
+            venue.excludedFromRerun.toggle()
+            errorMessage = "The re-run preference could not be saved. Please try again."
+        }
+    }
+
     private func deleteEntry() {
         do {
             try repository.delete(entry, photoStore: photoStore, in: modelContext)
             backupService.markDirty()
-            router.presentedDetails = nil
+            router.dismissDetails()
             dismiss()
         } catch {
             errorMessage = "The entry could not be deleted. Please try again."
@@ -113,6 +147,7 @@ private struct HistorySection: View {
                 .font(BrandStyle.displayFont(31, relativeTo: .title))
                 .accessibilityAddTraits(.isHeader)
             ForEach(revisions) { revision in
+                let rating = revision.rating
                 DisclosureGroup(isExpanded: Binding(
                     get: { expanded.contains(revision.id) },
                     set: { isExpanded in
@@ -121,7 +156,7 @@ private struct HistorySection: View {
                     }
                 )) {
                     VStack(spacing: 10) {
-                        ForEach(revision.rating.enabledComponents) { component in
+                        ForEach(rating.enabledComponents) { component in
                             HStack {
                                 Text(component.category.rawValue)
                                 Spacer()
@@ -143,9 +178,9 @@ private struct HistorySection: View {
                         }
                         Spacer()
                         ScoreDisplay(
-                            score: revision.rating.total,
-                            maximum: revision.rating.maximum,
-                            mode: revision.rating.overallDisplayMode,
+                            score: rating.total,
+                            maximum: rating.maximum,
+                            mode: rating.overallDisplayMode,
                             size: 26
                         )
                     }

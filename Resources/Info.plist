@@ -17,24 +17,20 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.2</string>
+	<string>1.3.1</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Parma Master uses the camera only when you choose to photograph a parma.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Parma Master uses background location to notice likely pub visits and offer local reminders without continuously tracking at high accuracy.</string>
+	<string>Parma Master uses your location to find nearby pubs and remind you when you visit somewhere worth logging, even when the app is closed.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Parma Master uses your location to find nearby pubs and attach venues to your entries.</string>
+	<string>Parma Master uses your location to find nearby pubs when you are logging a parma.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Parma Master accesses your photo library only when you choose a parma photo for an entry.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>DMSerifDisplay-Regular.ttf</string>
-	</array>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>location</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict/>

@@ -11,6 +11,34 @@ enum BrandStyle {
     }
 }
 
+enum BrandMotion {
+    static let standard: Animation = .snappy(duration: 0.35)
+    static let tabTransitionDelay: Duration = .milliseconds(320)
+
+    static var cardTransition: AnyTransition {
+        .asymmetric(
+            insertion: .opacity.combined(with: .move(edge: .top)),
+            removal: .opacity.combined(with: .scale(scale: 0.98, anchor: .top))
+        )
+    }
+
+    static func perform(_ reduceMotion: Bool, _ updates: () -> Void) {
+        if reduceMotion {
+            updates()
+        } else {
+            withAnimation(standard, updates)
+        }
+    }
+}
+
+struct BrandScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.snappy(duration: 0.2), value: configuration.isPressed)
+    }
+}
+
 extension View {
     func brandCard(emphasised: Bool = false) -> some View {
         padding()
