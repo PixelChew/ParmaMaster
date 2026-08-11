@@ -4,19 +4,20 @@ import SwiftUI
 struct LocationPickerView: View {
     let onSelect: (VenueCandidate) -> Void
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var completer = MapSearchCompleter()
+    @State private var completer = MapSearchCompleter()
     @State private var isResolving = false
     @State private var errorMessage: String?
     private let searchService = MapSearchService()
 
     var body: some View {
+        @Bindable var completer = completer
         NavigationStack {
             Group {
                 if completer.query.isEmpty {
                     ContentUnavailableView(
                         "Search Apple Maps",
                         systemImage: "map",
-                        description: Text("Enter a pub or venue name. The selected Maps place becomes the canonical venue identity.")
+                        description: Text("Type a pub or venue name to find it on the map.")
                     )
                 } else if let message = completer.errorMessage {
                     ContentUnavailableView(
@@ -47,7 +48,10 @@ struct LocationPickerView: View {
             }
             .navigationTitle("Choose Venue")
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $completer.query, prompt: "Pub or venue")
+            .searchable(text: Binding(
+                get: { completer.query },
+                set: { completer.setQuery($0) }
+            ), prompt: "Pub or venue")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", systemImage: "xmark") { dismiss() }

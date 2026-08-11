@@ -386,14 +386,34 @@ enum ParmaSchemaV3: VersionedSchema {
             set { venue?.longitude = newValue }
         }
 
+        // Decoded forms are memoised (audit finding P-01): rating/notes JSON
+        // previously decoded on every access, multiplying into thousands of
+        // decodes per render across sorting, cards, search and the map.
+        @Transient private var ratingCache = DecodedJSONCache<RatingSnapshot>()
+        @Transient private var notesCache = DecodedJSONCache<AttributedString>()
+
         var currentRating: RatingSnapshot {
-            get { Self.decode(RatingSnapshot.self, from: currentRatingData) ?? .blank(configuration: .default) }
-            set { currentRatingData = Self.encode(newValue) }
+            get {
+                ratingCache.value(for: currentRatingData) {
+                    Self.decode(RatingSnapshot.self, from: $0) ?? .blank(configuration: .default)
+                }
+            }
+            set {
+                currentRatingData = Self.encode(newValue)
+                ratingCache.invalidate()
+            }
         }
 
         var notes: AttributedString {
-            get { Self.decode(AttributedString.self, from: notesData) ?? AttributedString() }
-            set { notesData = Self.encode(newValue) }
+            get {
+                notesCache.value(for: notesData) {
+                    Self.decode(AttributedString.self, from: $0) ?? AttributedString()
+                }
+            }
+            set {
+                notesData = Self.encode(newValue)
+                notesCache.invalidate()
+            }
         }
 
         var searchableNotes: String { String(notes.characters) }
@@ -415,6 +435,8 @@ enum ParmaSchemaV3: VersionedSchema {
         var ratingData: Data
         var entry: ParmaEntry?
 
+        @Transient private var ratingCache = DecodedJSONCache<RatingSnapshot>()
+
         init(id: UUID = UUID(), timestamp: Date, rating: RatingSnapshot, entry: ParmaEntry? = nil) {
             self.id = id
             self.timestamp = timestamp
@@ -423,8 +445,15 @@ enum ParmaSchemaV3: VersionedSchema {
         }
 
         var rating: RatingSnapshot {
-            get { (try? JSONDecoder().decode(RatingSnapshot.self, from: ratingData)) ?? .blank(configuration: .default) }
-            set { ratingData = (try? JSONEncoder().encode(newValue)) ?? Data() }
+            get {
+                ratingCache.value(for: ratingData) {
+                    (try? JSONDecoder().decode(RatingSnapshot.self, from: $0)) ?? .blank(configuration: .default)
+                }
+            }
+            set {
+                ratingData = (try? JSONEncoder().encode(newValue)) ?? Data()
+                ratingCache.invalidate()
+            }
         }
     }
 }
@@ -482,16 +511,18 @@ enum ParmaMigrationPlan: SchemaMigrationPlan {
         let revisions: [RevisionRecord]
     }
 
-    nonisolated(unsafe) private static var migrationRecords: [EntryRecord] = []
-    nonisolated(unsafe) private static var v2VenueRecords: [VenueRecord] = []
-    nonisolated(unsafe) private static var v2EntryRecords: [V2EntryRecord] = []
+    // Lock-guarded rather than `nonisolated(unsafe)` (audit finding A-08):
+    // migration stages run once and serially, but the compiler cannot see it.
+    private static let migrationRecords = LockIsolated<[EntryRecord]>([])
+    private static let v2VenueRecords = LockIsolated<[VenueRecord]>([])
+    private static let v2EntryRecords = LockIsolated<[V2EntryRecord]>([])
 
     static let migrateV1toV2 = MigrationStage.custom(
         fromVersion: ParmaSchemaV1.self,
         toVersion: ParmaSchemaV2.self,
         willMigrate: { context in
             let oldEntries = try context.fetch(FetchDescriptor<ParmaSchemaV1.ParmaEntry>())
-            migrationRecords = oldEntries.map { entry in
+            let records = oldEntries.map { entry in
                 EntryRecord(
                     id: entry.id,
                     venueIdentity: entry.venueIdentity,
@@ -511,11 +542,12 @@ enum ParmaMigrationPlan: SchemaMigrationPlan {
                     }
                 )
             }
+            migrationRecords.withLock { $0 = records }
             for entry in oldEntries { context.delete(entry) }
             try context.save()
         },
         didMigrate: { context in
-            let records = migrationRecords.sorted { $0.id.uuidString < $1.id.uuidString }
+            let records = migrationRecords.withLock { $0 }.sorted { $0.id.uuidString < $1.id.uuidString }
             var venuesByIdentity: [String: ParmaSchemaV2.Venue] = [:]
 
             for record in records {
@@ -560,7 +592,7 @@ enum ParmaMigrationPlan: SchemaMigrationPlan {
                 context.insert(entry)
             }
             try context.save()
-            migrationRecords.removeAll(keepingCapacity: false)
+            migrationRecords.withLock { $0.removeAll(keepingCapacity: false) }
         }
     )
 
@@ -571,7 +603,7 @@ enum ParmaMigrationPlan: SchemaMigrationPlan {
             let oldVenues = try context.fetch(FetchDescriptor<ParmaSchemaV2.Venue>())
             let oldEntries = try context.fetch(FetchDescriptor<ParmaSchemaV2.ParmaEntry>())
 
-            v2VenueRecords = oldVenues.map { venue in
+            let venueRecords = oldVenues.map { venue in
                 VenueRecord(
                     id: venue.id,
                     mapItemIdentifier: venue.mapItemIdentifier,
@@ -582,8 +614,9 @@ enum ParmaMigrationPlan: SchemaMigrationPlan {
                     longitude: venue.longitude
                 )
             }
+            v2VenueRecords.withLock { $0 = venueRecords }
 
-            v2EntryRecords = oldEntries.map { entry in
+            let entryRecords = oldEntries.map { entry in
                 V2EntryRecord(
                     id: entry.id,
                     venueIdentity: entry.venue?.venueIdentity ?? "",
@@ -598,6 +631,7 @@ enum ParmaMigrationPlan: SchemaMigrationPlan {
                     }
                 )
             }
+            v2EntryRecords.withLock { $0 = entryRecords }
 
             for entry in oldEntries { context.delete(entry) }
             for venue in oldVenues { context.delete(venue) }
@@ -606,7 +640,7 @@ enum ParmaMigrationPlan: SchemaMigrationPlan {
         didMigrate: { context in
             var venuesByIdentity: [String: ParmaSchemaV3.Venue] = [:]
 
-            for record in v2VenueRecords.sorted(by: { $0.id.uuidString < $1.id.uuidString }) {
+            for record in v2VenueRecords.withLock({ $0 }).sorted(by: { $0.id.uuidString < $1.id.uuidString }) {
                 let venue = ParmaSchemaV3.Venue(
                     id: record.id,
                     mapItemIdentifier: record.mapItemIdentifier,
@@ -622,7 +656,7 @@ enum ParmaMigrationPlan: SchemaMigrationPlan {
                 context.insert(venue)
             }
 
-            for record in v2EntryRecords.sorted(by: { $0.id.uuidString < $1.id.uuidString }) {
+            for record in v2EntryRecords.withLock({ $0 }).sorted(by: { $0.id.uuidString < $1.id.uuidString }) {
                 guard let venue = venuesByIdentity[record.venueIdentity] else { continue }
 
                 let revisions = record.revisions.map { revision -> ParmaSchemaV3.RatingRevision in
@@ -650,8 +684,8 @@ enum ParmaMigrationPlan: SchemaMigrationPlan {
             }
 
             try context.save()
-            v2VenueRecords.removeAll(keepingCapacity: false)
-            v2EntryRecords.removeAll(keepingCapacity: false)
+            v2VenueRecords.withLock { $0.removeAll(keepingCapacity: false) }
+            v2EntryRecords.withLock { $0.removeAll(keepingCapacity: false) }
         }
     )
 }

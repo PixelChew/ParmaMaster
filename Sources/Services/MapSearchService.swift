@@ -1,6 +1,7 @@
 import CoreLocation
 import Foundation
 import MapKit
+import Observation
 
 @MainActor
 protocol MapSearching {
@@ -19,13 +20,13 @@ struct MapSearchService: MapSearching {
 
     func nearbyPubCandidates(around location: CLLocation) async throws -> [VenueCandidate] {
         var found: [String: VenueCandidate] = [:]
-        for query in ["pub", "brewery", "nightlife"] {
+        for query in DetectionTuning.searchQueries {
             let request = MKLocalSearch.Request()
             request.naturalLanguageQuery = query
             request.region = MKCoordinateRegion(
                 center: location.coordinate,
-                latitudinalMeters: 450,
-                longitudinalMeters: 450
+                latitudinalMeters: DetectionTuning.searchRegionSpan,
+                longitudinalMeters: DetectionTuning.searchRegionSpan
             )
             request.pointOfInterestFilter = MKPointOfInterestFilter(including: [.nightlife, .brewery, .restaurant])
             let response = try await MKLocalSearch(request: request).start()
@@ -47,13 +48,12 @@ enum MapSearchError: LocalizedError {
     var errorDescription: String? { "No matching venue was found. Check your connection and try again." }
 }
 
+@Observable
 @MainActor
-final class MapSearchCompleter: NSObject, ObservableObject, @preconcurrency MKLocalSearchCompleterDelegate {
-    @Published var query = "" {
-        didSet { completer.queryFragment = query }
-    }
-    @Published private(set) var results: [MKLocalSearchCompletion] = []
-    @Published private(set) var errorMessage: String?
+final class MapSearchCompleter: NSObject, @preconcurrency MKLocalSearchCompleterDelegate {
+    var query = ""
+    private(set) var results: [MKLocalSearchCompletion] = []
+    private(set) var errorMessage: String?
 
     private let completer = MKLocalSearchCompleter()
 
@@ -62,6 +62,15 @@ final class MapSearchCompleter: NSObject, ObservableObject, @preconcurrency MKLo
         completer.delegate = self
         completer.resultTypes = [.pointOfInterest, .address]
         completer.pointOfInterestFilter = MKPointOfInterestFilter(including: [.nightlife, .brewery, .restaurant])
+    }
+
+    /// Updates the visible query and forwards it to MapKit. Bindings must
+    /// go through this method — `@Observable` bypasses `didSet`, which broke
+    /// the venue search list when the completer was migrated (audit A-06).
+    func setQuery(_ value: String) {
+        guard query != value else { return }
+        query = value
+        completer.queryFragment = value
     }
 
     func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {

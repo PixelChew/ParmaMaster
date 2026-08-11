@@ -49,7 +49,7 @@ final class ParmaInsightsCalculatorTests: XCTestCase {
 
     func testAreasVisitedDedupesLocalitiesAndIgnoresUnresolved() {
         let fitzroyA = entry("Fitzroy A", score: 8, maximum: 10, locality: "Fitzroy")
-        let fitzroyB = entry("Fitzroy B", score: 7, maximum: 10, locality: "Fitzroy")
+        let fitzroyB = entry("Fitzroy B", score: 7, maximum: 10, locality: "fitzroy")
         let brunswick = entry("Brunswick", score: 6, maximum: 10, locality: "Brunswick")
         let unresolved = entry("Unresolved", score: 5, maximum: 10, locality: nil)
         let blank = entry("Blank", score: 4, maximum: 10, locality: "   ")

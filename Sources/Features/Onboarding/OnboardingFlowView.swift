@@ -57,7 +57,7 @@ private struct WelcomeView: View {
                     .buttonStyle(.borderedProminent)
                     .buttonBorderShape(.capsule)
                     .controlSize(.large)
-                    .tint(Color(hex: "#FF6A00")!.opacity(0.86))
+                    .tint((Color(hex: BrandStyle.defaultAccentHex) ?? .orange).opacity(0.86))
                     .frame(maxWidth: 260)
                     .accessibilityHint("Shows how Parma Master uses permissions")
                 Spacer()
@@ -89,14 +89,14 @@ private struct PermissionsExplanationView: View {
                 VStack(spacing: 18) {
                     PermissionCard(
                         title: "Location",
-                        message: "Find nearby pubs and suggest places when location features are enabled.",
+                        message: "Finds the pub you are at and can remind you to log a parma later. Choose “Always” when iOS asks.",
                         symbol: "location",
                         isApproved: locationIsApproved,
                         action: requestLocation
                     )
                     PermissionCard(
                         title: "Camera & Photos",
-                        message: "Snap a photo or choose one only when you add it to an entry.",
+                        message: "Snap a photo or pick one from your library when you add it to an entry.",
                         symbol: "camera",
                         isApproved: mediaIsApproved,
                         isRequesting: isRequestingMedia,
@@ -104,7 +104,7 @@ private struct PermissionsExplanationView: View {
                     )
                     PermissionCard(
                         title: "Notifications",
-                        message: "Receive an optional local reminder after a likely pub visit is detected.",
+                        message: "A friendly nudge to log your parma when it looks like you're at a pub.",
                         symbol: "bell.badge",
                         isApproved: notificationsAreApproved,
                         action: requestNotifications
@@ -134,6 +134,13 @@ private struct PermissionsExplanationView: View {
             guard phase == .active else { return }
             Task { await refreshPermissionStatuses() }
         }
+        // The setting follows the actual grant rather than being switched on
+        // optimistically before iOS answers (audit finding UX-03).
+        .onChange(of: locationService.authorizationStatus) { _, status in
+            if status == .authorizedWhenInUse || status == .authorizedAlways {
+                settings.locationUseEnabled = true
+            }
+        }
     }
 
     private var locationIsApproved: Bool {
@@ -157,8 +164,11 @@ private struct PermissionsExplanationView: View {
             openSystemSettings()
             return
         }
-        settings.locationUseEnabled = true
-        locationService.requestWhenInUse()
+        if locationService.authorizationStatus == .authorizedWhenInUse
+            || locationService.authorizationStatus == .authorizedAlways {
+            settings.locationUseEnabled = true
+        }
+        locationService.requestAlwaysAuthorization()
     }
 
     private func requestCameraAndPhotos() {

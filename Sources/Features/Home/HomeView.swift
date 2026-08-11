@@ -10,7 +10,8 @@ struct HomeView: View {
     @Environment(PubDetectionService.self) private var pubDetection
     @Environment(LocalParmaRepository.self) private var repository
     @Environment(RerunSuggestionService.self) private var rerunService
-    @Query private var entries: [ParmaEntry]
+    // Store-sorted so the render pass never re-sorts the whole log (audit P-02).
+    @Query(sort: \ParmaEntry.currentRatingDate, order: .reverse) private var entries: [ParmaEntry]
 
     /// How many recent entries to show, keyed only to screen height — never reduced
     /// because greeting, stats, or suggestion cards are on screen.
@@ -19,19 +20,14 @@ struct HomeView: View {
     }
 
     private var recentEntries: [ParmaEntry] {
-        Array(
-            entries
-                .sorted { $0.currentRatingDate > $1.currentRatingDate }
-                .prefix(recentEntriesLimit)
-        )
+        Array(entries.prefix(recentEntriesLimit))
     }
 
     private var areasVisitedCount: Int {
         Set(
             entries.compactMap { entry -> String? in
-                guard let locality = entry.venue?.locality?.trimmingCharacters(in: .whitespacesAndNewlines),
-                      !locality.isEmpty else { return nil }
-                return locality
+                guard let locality = AreaNameResolver.cleaned(entry.venue?.locality) else { return nil }
+                return AreaNameResolver.normalisedKey(locality)
             }
         ).count
     }
@@ -185,6 +181,8 @@ final class HomeGreetingSession {
 }
 
 enum HomeGreeting {
+    /// Greetings are intentionally name-free — do not reintroduce personalised
+    /// variants such as "Welcome back, {name}." from older branches.
     static func message(
         at date: Date = .now,
         calendar: Calendar = .current
@@ -340,7 +338,7 @@ private struct VenueSuggestionCard: View {
 
             HStack(alignment: .top, spacing: 14) {
                 if let existingEntry {
-                    StoredPhotoView(filename: existingEntry.photoFilename)
+                    StoredPhotoView(filename: existingEntry.photoFilename, useThumbnail: true)
                         .frame(width: 108, height: 110)
                     VStack(alignment: .leading, spacing: 10) {
                         ScoreDisplay(

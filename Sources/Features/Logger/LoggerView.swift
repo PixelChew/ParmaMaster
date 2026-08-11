@@ -12,7 +12,6 @@ struct LoggerView: View {
     @Environment(PhotoStore.self) private var photoStore
     @Environment(BackupService.self) private var backupService
     @Environment(LocalParmaRepository.self) private var repository
-    @Query private var entries: [ParmaEntry]
 
     @State private var mode: LoggerMode
     @State private var editingEntry: ParmaEntry?
@@ -187,7 +186,7 @@ struct LoggerView: View {
                 }
                 Button("Cancel", role: .cancel) { duplicateEntry = nil }
             } message: {
-                Text("This venue already has a canonical entry. Rate it again to archive its current score in History instead of creating a duplicate.")
+                Text("You already have an entry for this venue. Rate it again to save the new score in History instead of creating a duplicate.")
             }
             .alert("Couldn’t Save", isPresented: Binding(
                 get: { errorMessage != nil },
@@ -263,7 +262,8 @@ struct LoggerView: View {
                 name: entry.venueName,
                 formattedAddress: entry.formattedAddress,
                 latitude: entry.latitude,
-                longitude: entry.longitude
+                longitude: entry.longitude,
+                locality: entry.venue?.locality
             )
             notes = entry.notes
             existingPhotoFilename = entry.photoFilename
@@ -286,11 +286,10 @@ struct LoggerView: View {
     }
 
     private func selectVenue(_ selected: VenueCandidate) {
-        if mode == .new, let existing = repository.findExisting(for: selected, in: entries) {
-            venue = selected
+        venue = selected
+        if mode == .new,
+           let existing = ((try? repository.findExisting(for: selected, in: modelContext)) ?? nil) {
             duplicateEntry = existing
-        } else {
-            venue = selected
         }
     }
 
@@ -323,6 +322,15 @@ struct LoggerView: View {
 
     private func save() {
         guard let venue, parsedRating.hasValidScores else { return }
+        // Duplicate check must run at save time, not just at venue selection:
+        // Logger can open with a venue pre-filled (Home card, notification deep
+        // link), and `create` returns the existing entry without saving, which
+        // would silently discard the new rating, notes, and photo.
+        if editingEntry == nil,
+           let existing = ((try? repository.findExisting(for: venue, in: modelContext)) ?? nil) {
+            duplicateEntry = existing
+            return
+        }
         do {
             let oldFilename = editingEntry?.photoFilename
             var finalFilename = removeExistingPhoto ? nil : oldFilename
@@ -343,17 +351,13 @@ struct LoggerView: View {
                     in: modelContext
                 )
             } else {
-                let created = try repository.create(
+                try repository.create(
                     venue: venue,
                     rating: parsedRating,
                     notes: notes,
                     photoFilename: finalFilename,
                     in: modelContext
                 )
-                if repository.findExisting(for: venue, in: entries) != nil, !entries.contains(where: { $0.id == created.id }) {
-                    duplicateEntry = created
-                    return
-                }
             }
             backupService.markDirty()
             savedTrigger += 1

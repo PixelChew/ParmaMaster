@@ -13,6 +13,9 @@ struct ParmaDetailsView: View {
     @State private var errorMessage: String?
 
     var body: some View {
+        // Hoisted so the rating reads and revision sort run once per render (audit P-01 follow-up).
+        let rating = entry.currentRating
+        let revisions = entry.sortedRevisions
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 20) {
                 StoredPhotoView(filename: entry.photoFilename)
@@ -38,13 +41,13 @@ struct ParmaDetailsView: View {
                     .accessibilityAddTraits(.isHeader)
 
                 ScoreDisplay(
-                    score: entry.currentRating.total,
-                    maximum: entry.currentRating.maximum,
-                    mode: entry.currentRating.overallDisplayMode,
+                    score: rating.total,
+                    maximum: rating.maximum,
+                    mode: rating.overallDisplayMode,
                     size: 51
                 )
 
-                ForEach(entry.currentRating.enabledComponents) { component in
+                ForEach(rating.enabledComponents) { component in
                     ComponentScoreRow(component: component)
                 }
 
@@ -57,8 +60,8 @@ struct ParmaDetailsView: View {
                     .brandCard()
                 }
 
-                if !entry.revisions.isEmpty {
-                    HistorySection(revisions: entry.sortedRevisions)
+                if !revisions.isEmpty {
+                    HistorySection(revisions: revisions)
                 }
 
                 Button("Delete Entry", systemImage: "trash", role: .destructive) {
@@ -144,6 +147,7 @@ private struct HistorySection: View {
                 .font(BrandStyle.displayFont(31, relativeTo: .title))
                 .accessibilityAddTraits(.isHeader)
             ForEach(revisions) { revision in
+                let rating = revision.rating
                 DisclosureGroup(isExpanded: Binding(
                     get: { expanded.contains(revision.id) },
                     set: { isExpanded in
@@ -152,7 +156,7 @@ private struct HistorySection: View {
                     }
                 )) {
                     VStack(spacing: 10) {
-                        ForEach(revision.rating.enabledComponents) { component in
+                        ForEach(rating.enabledComponents) { component in
                             HStack {
                                 Text(component.category.rawValue)
                                 Spacer()
@@ -174,9 +178,9 @@ private struct HistorySection: View {
                         }
                         Spacer()
                         ScoreDisplay(
-                            score: revision.rating.total,
-                            maximum: revision.rating.maximum,
-                            mode: revision.rating.overallDisplayMode,
+                            score: rating.total,
+                            maximum: rating.maximum,
+                            mode: rating.overallDisplayMode,
                             size: 26
                         )
                     }
