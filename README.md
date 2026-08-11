@@ -28,7 +28,7 @@ Parma Master helps you keep a personal log of venues, rate each parma by its com
 
 - macOS with Xcode 27.0 or later
 - An iPhone or simulator running iOS 26 or later
-- An Apple Developer team for device signing; a paid program entitlement is not required for local development
+- An Apple Developer account for physical-device signing; simulator builds do not require a paid program membership
 
 ## Run Parma Master
 
