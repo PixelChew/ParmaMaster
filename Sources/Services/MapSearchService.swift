@@ -65,8 +65,8 @@ final class MapSearchCompleter: NSObject, @preconcurrency MKLocalSearchCompleter
     }
 
     /// Updates the visible query and forwards it to MapKit. Bindings must
-    /// go through this method — `@Observable` bypasses `didSet`, which broke
-    /// the venue search list when the completer was migrated (audit A-06).
+    /// go through this method because `@Observable` bypasses `didSet`; direct
+    /// mutation previously left the venue search list out of sync.
     func setQuery(_ value: String) {
         guard query != value else { return }
         query = value
