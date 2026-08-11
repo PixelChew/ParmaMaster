@@ -1,8 +1,13 @@
-# Parma Master
+# Parma Master 1.2
 
 A local-first iPhone app for rating, remembering, and discovering great parmas.
 
 Parma Master helps you keep a personal log of venues, rate each parma by its components, add notes and photos, and find places worth returning to. It is built natively for iPhone with SwiftUI and Apple frameworks.
+
+V1.2 adds Insights, a local-first view of where you have logged parmas and
+what your rating history looks like overall. It combines a native MapKit map
+with derived statistics and introduces no server, login, analytics, ads,
+CloudKit, or third-party runtime dependency.
 
 ## What you can do
 
@@ -15,6 +20,29 @@ Parma Master helps you keep a personal log of venues, rate each parma by its com
 - Edit entries, re-rate venues, manage duplicates, and delete entries with confirmation.
 - Back up and restore entries, rating history, notes, settings, and photos through a user-selected Files folder.
 - Personalise the appearance and scoring behaviour to match how you judge a great parma.
+
+## Insights
+
+Insights is a normal tab between Parma Log and Settings. It includes:
+
+- A selectable MapKit map with one marker per canonical venue. Markers show a
+  comparable normalised `/10` score, and the camera frames one or many saved
+  locations automatically.
+- Headline cards for Parmas logged, average rating, highest rating, and lowest
+  rating. Cross-entry comparisons use `currentTotal / currentMaximum`, never
+  raw totals from different rating scales.
+- Highest and lowest venue cards, perfect-score venues, ratings submitted,
+  most revisited places, Parmas logged this year, most recently logged, and
+  independently normalised Parma, Chips, and Salad averages.
+- Empty and low-data states, invalid-coordinate protection, accessible marker
+  labels, and actions that open the existing Parma Details flow.
+
+Insights values are calculated in memory from current canonical `ParmaEntry`
+records. Historical `RatingRevision` snapshots contribute only to explicitly
+historical metrics such as ratings submitted and most revisited; they do not
+create duplicate venues or map pins. Derived statistics are not persisted, so
+they stay correct after edits, rerates, deletions, restores, and rating-scale
+changes.
 
 ## Built with
 
@@ -52,10 +80,19 @@ On a physical iPhone, Xcode may ask you to enable Developer Mode or trust the de
 - `Sources/Features/ParmaLog`: the canonical venue list and sorting
 - `Sources/Features/Search`: search across venues, addresses, and notes
 - `Sources/Features/Details`: scores, components, photos, notes, history, editing, and deletion
+- `Sources/Features/Insights`: the native map, statistic cards, venue insight cards, empty states, and existing-details routing
 - `Sources/Features/Settings`: appearance, scoring, behaviour, permissions, backups, and reset controls
-- `Sources/Shared`: brand styling and reusable UI components
+- `Sources/Shared`: brand styling, DM Serif typography, score displays, cards, empty states, and reusable UI components
+- `Tests` and `UITests`: model, repository, backup, rating, Insights-calculator, and primary navigation coverage
 
 The data model keeps each venue as a canonical entry and stores rating revisions as immutable snapshots. This means changing the scoring configuration does not rewrite historical ratings.
+
+## Verification
+
+The current V1.2 branch builds against the iOS 26 deployment target and passes
+the full iOS Simulator suite, including Insights normalisation, tie handling,
+perfect-score detection, component averages, zero-entry behavior, and the
+Insights tab empty-state UI flow.
 
 ## Permissions
 
