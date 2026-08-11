@@ -51,7 +51,7 @@ struct SearchEntriesView: View {
             .brandPageBackground()
             .brandedNavigationTitle("Search")
             .searchable(text: $query, prompt: "Venue, address or notes")
-            // Debounce so filtering runs once per pause, not per keystroke (audit P-03).
+            // Debounce so filtering runs once per pause rather than per keystroke.
             .task(id: query) {
                 if query.isEmpty {
                     debouncedQuery = ""
