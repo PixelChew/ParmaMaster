@@ -13,7 +13,7 @@ struct ParmaDetailsView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        // Hoisted so the rating reads and revision sort run once per render (audit P-01 follow-up).
+        // Hoisted so rating reads and revision sorting run once per render.
         let rating = entry.currentRating
         let revisions = entry.sortedRevisions
         ScrollView {
