@@ -1,6 +1,10 @@
 import SwiftUI
 
 struct SettingsView: View {
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -26,6 +30,15 @@ struct SettingsView: View {
                     BackupResetSettingsView()
                 } label: {
                     SettingsRow(title: "Backup & Reset", symbol: "arrow.clockwise")
+                }
+
+                Section {
+                    EmptyView()
+                } footer: {
+                    Text("ParmaMaster Version V\(appVersion)\n© Hamish Ferguson 2026")
+                        .frame(maxWidth: .infinity)
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 12)
                 }
             }
             .listStyle(.insetGrouped)
