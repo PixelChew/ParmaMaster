@@ -66,7 +66,6 @@ Parma Master asks only when a feature needs access:
 - Camera and photo library for adding venue photos
 - Files access when you explicitly choose a backup folder
 
-Location-based reminders are best-effort because iOS controls background execution and location delivery. Manual search and logging remain available without location access.
 
 ## Contributing
 
