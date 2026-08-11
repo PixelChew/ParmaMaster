@@ -23,7 +23,6 @@ Parma Master helps you keep a personal log of venues, rate each parma by its com
 - MapKit and Core Location for venue search and location-based suggestions
 - UserNotifications for optional local reminders
 - PhotosUI, UIKit, and the camera for image capture and selection
-- No server, login, analytics, advertising, CloudKit, or third-party runtime dependencies
 
 ## Requirements
 
@@ -55,7 +54,6 @@ On a physical iPhone, Xcode may ask you to enable Developer Mode or trust the de
 - `Sources/Features/Details`: scores, components, photos, notes, history, editing, and deletion
 - `Sources/Features/Settings`: appearance, scoring, behaviour, permissions, backups, and reset controls
 - `Sources/Shared`: brand styling and reusable UI components
-- `Tests` and `UITests`: automated coverage for core models and user flows
 
 The data model keeps each venue as a canonical entry and stores rating revisions as immutable snapshots. This means changing the scoring configuration does not rewrite historical ratings.
 
