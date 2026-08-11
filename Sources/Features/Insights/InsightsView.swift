@@ -188,7 +188,7 @@ private struct VenueInsightGroup: View {
             ForEach(entries) { entry in
                 Button { action(entry) } label: {
                     HStack(spacing: 12) {
-                        StoredPhotoView(filename: entry.photoFilename)
+                        StoredPhotoView(filename: entry.photoFilename, useThumbnail: true)
                             .frame(width: 86, height: 68)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(entry.venueName).font(.headline).foregroundStyle(.primary).lineLimit(2)
@@ -218,30 +218,62 @@ private struct ParmaMapView: View {
     @Binding var selectedEntry: ParmaEntry?
     @State private var position: MapCameraPosition = .automatic
 
-    private var mappableEntries: [ParmaEntry] { entries.filter { CLLocationCoordinate2DIsValid(CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)) && !($0.latitude == 0 && $0.longitude == 0) } }
+    /// One marker per canonical venue, with display strings precomputed once
+    /// per body evaluation instead of three filtered walks (audit P-06).
+    private struct VenueAnnotation: Identifiable {
+        let id: UUID
+        let title: String
+        let coordinate: CLLocationCoordinate2D
+        let scoreText: String
+        let accessibilityText: String
+        let entry: ParmaEntry
+    }
+
+    private static func venueAnnotations(from entries: [ParmaEntry]) -> [VenueAnnotation] {
+        var seenVenueIDs = Set<UUID>()
+        var annotations: [VenueAnnotation] = []
+        for entry in entries {
+            let coordinate = CLLocationCoordinate2D(latitude: entry.latitude, longitude: entry.longitude)
+            guard CLLocationCoordinate2DIsValid(coordinate),
+                  !(entry.latitude == 0 && entry.longitude == 0) else { continue }
+            let venueID = entry.venue?.id ?? entry.id
+            guard seenVenueIDs.insert(venueID).inserted else { continue }
+            let equivalent = entry.currentRating.normalisedScore.tenPointEquivalent
+            annotations.append(VenueAnnotation(
+                id: venueID,
+                title: entry.venueName,
+                coordinate: coordinate,
+                scoreText: equivalent.rounded(scale: 1).displayString,
+                accessibilityText: "\(entry.venueName), \(equivalent.insightScoreString) equivalent",
+                entry: entry
+            ))
+        }
+        return annotations
+    }
 
     var body: some View {
+        let annotations = Self.venueAnnotations(from: entries)
         VStack(spacing: 0) {
             Map(position: $position) {
-                ForEach(mappableEntries) { entry in
-                    Annotation(entry.venueName, coordinate: CLLocationCoordinate2D(latitude: entry.latitude, longitude: entry.longitude), anchor: .bottom) {
+                ForEach(annotations) { annotation in
+                    Annotation(annotation.title, coordinate: annotation.coordinate, anchor: .bottom) {
                         Button {
-                            withAnimation(.snappy) { selectedEntry = entry }
+                            withAnimation(.snappy) { selectedEntry = annotation.entry }
                         } label: {
-                            Text(entry.currentRating.normalisedScore.tenPointEquivalent.rounded(scale: 1).displayString)
+                            Text(annotation.scoreText)
                                 .font(.caption.bold().monospacedDigit())
                                 .padding(.horizontal, 8).padding(.vertical, 6)
                                 .background(Color.accentColor, in: Capsule())
                                 .foregroundStyle(.white)
                         }
-                        .accessibilityLabel("\(entry.venueName), \(entry.currentRating.normalisedScore.tenPointEquivalent.insightScoreString) equivalent")
+                        .accessibilityLabel(annotation.accessibilityText)
                     }
                 }
             }
             .mapStyle(.standard(elevation: .realistic))
             .frame(height: 280)
-            .onAppear { frameEntries() }
-            .onChange(of: mappableEntries.map(\.id)) { _, _ in frameEntries() }
+            .onAppear { frameEntries(annotations) }
+            .onChange(of: annotations.map(\.id)) { _, _ in frameEntries(annotations) }
 
             if let selectedEntry {
                 HStack {
@@ -267,14 +299,14 @@ private struct ParmaMapView: View {
     @Environment(AppRouter.self) private var router
     private func routerPresent(_ entry: ParmaEntry) { router.presentDetails(entry) }
 
-    private func frameEntries() {
-        guard !mappableEntries.isEmpty else { return }
-        if mappableEntries.count == 1, let entry = mappableEntries.first {
-            position = .region(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: entry.latitude, longitude: entry.longitude), span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)))
+    private func frameEntries(_ annotations: [VenueAnnotation]) {
+        guard !annotations.isEmpty else { return }
+        if annotations.count == 1, let annotation = annotations.first {
+            position = .region(MKCoordinateRegion(center: annotation.coordinate, span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)))
             return
         }
-        let latitudes = mappableEntries.map(\.latitude)
-        let longitudes = mappableEntries.map(\.longitude)
+        let latitudes = annotations.map(\.coordinate.latitude)
+        let longitudes = annotations.map(\.coordinate.longitude)
         let latitudeSpan = max((latitudes.max()! - latitudes.min()!) * 1.35, 0.02)
         let longitudeSpan = max((longitudes.max()! - longitudes.min()!) * 1.35, 0.02)
         position = .region(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: (latitudes.max()! + latitudes.min()!) / 2, longitude: (longitudes.max()! + longitudes.min()!) / 2), span: MKCoordinateSpan(latitudeDelta: min(latitudeSpan, 180), longitudeDelta: min(longitudeSpan, 180))))

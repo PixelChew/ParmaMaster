@@ -13,11 +13,9 @@ struct ParmaLogView: View {
     @State private var entryToDelete: ParmaEntry?
     @State private var errorMessage: String?
 
-    private var sortedEntries: [ParmaEntry] {
-        EntrySorter.sorted(entries, by: sortField, direction: sortDirection)
-    }
-
     var body: some View {
+        // Sorted exactly once per render (audit P-01/P-02 follow-up).
+        let sortedEntries = EntrySorter.sorted(entries, by: sortField, direction: sortDirection)
         NavigationStack {
             Group {
                 if entries.isEmpty {

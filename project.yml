@@ -27,21 +27,19 @@ targets:
       properties:
         CFBundleDisplayName: Parma Master
         CFBundleName: Parma Master
-        CFBundleShortVersionString: "1.3"
+        CFBundleShortVersionString: "1.3.1"
         CFBundleVersion: "1"
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
-        NSLocationWhenInUseUsageDescription: Parma Master uses your location to find nearby pubs and attach venues to your entries.
-        NSLocationAlwaysAndWhenInUseUsageDescription: Parma Master uses background location to notice likely pub visits and offer local reminders without continuously tracking at high accuracy.
+        NSLocationWhenInUseUsageDescription: Parma Master uses your location to find nearby pubs when you are logging a parma.
+        NSLocationAlwaysAndWhenInUseUsageDescription: Parma Master uses your location to find nearby pubs and remind you when you visit somewhere worth logging, even when the app is closed.
         NSCameraUsageDescription: Parma Master uses the camera only when you choose to photograph a parma.
         NSPhotoLibraryUsageDescription: Parma Master accesses your photo library only when you choose a parma photo for an entry.
-        UIBackgroundModes:
-          - location
         UIAppFonts:
           - DMSerifDisplay-Regular.ttf
         UTExportedTypeDeclarations:
-          - UTTypeIdentifier: com.example.parmamaster.backup
+          - UTTypeIdentifier: com.fergohamish.parmamaster.backup
             UTTypeDescription: Parma Master Backup
             UTTypeConformsTo:
               - public.json

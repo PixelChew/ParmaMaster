@@ -2,15 +2,17 @@ import CoreLocation
 import Foundation
 import MapKit
 import Network
+import os
 import SwiftData
 
-/// Resolves and persists a venue's MapKit area name (`Venue.locality`) via reverse geocoding.
+/// Resolves and persists a venue's area name (`Venue.locality`) for the
+/// Areas visited tally. Prefers MapKit city names, falls back to parsing the
+/// stored address (works offline), and reverse-geocodes only when needed.
 @MainActor
 enum AreaResolutionService {
-    /// Max venues to reverse-geocode per backfill pass (app launch).
-    private static let backfillBatchLimit = 8
-    /// Brief pause between geocode requests to avoid hammering MapKit.
-    private static let backfillSpacingNanoseconds: UInt64 = 250_000_000
+    /// Venue IDs that failed network resolution this process — skipped so a
+    /// stubborn failure cannot permanently block the backfill queue.
+    private static var skippedNetworkIDs = Set<UUID>()
 
     /// Best-effort fire-and-forget resolve after create/update. Does not block the caller.
     static func scheduleResolveIfNeeded(_ venue: Venue?, in context: ModelContext) {
@@ -23,40 +25,106 @@ enum AreaResolutionService {
         guard let name = await resolvedAreaName(for: venue) else { return }
         guard needsResolution(venue) else { return }
         venue.locality = name
-        try? context.save()
+        do {
+            try context.save()
+        } catch {
+            AppLog.data.error("Locality save failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
-    /// Backfill for venues with missing locality. Skips when offline; throttled batch.
-    /// Resolved names are applied and saved once at the end so observers (e.g. the Home
-    /// areas count) see a single update rather than the count visibly ticking up.
-    static func backfillMissingLocalities(in context: ModelContext) async {
-        guard await isNetworkSatisfied() else { return }
+    /// Immediate offline fill from a candidate/address, then optional network resolve.
+    static func applyImmediateLocality(to venue: Venue, candidateLocality: String?, formattedAddress: String) {
+        guard needsResolution(venue) else { return }
+        if let name = AreaNameResolver.cleaned(candidateLocality)
+            ?? AreaNameResolver.fromFormattedAddress(formattedAddress) {
+            venue.locality = name
+        }
+    }
 
+    /// Backfill for venues with missing locality.
+    ///
+    /// 1. Offline pass: parse every stored address and save once (no count flicker).
+    /// 2. Online pass: reverse-geocode a bounded batch of remaining venues,
+    ///    skipping IDs that already failed this launch so the queue advances.
+    static func backfillMissingLocalities(in context: ModelContext) async {
         let venues: [Venue]
         do {
             venues = try context.fetch(FetchDescriptor<Venue>())
         } catch {
+            AppLog.data.error("Locality backfill fetch failed: \(error.localizedDescription, privacy: .public)")
             return
         }
 
-        let pending = venues
-            .filter { needsResolution($0) && hasValidCoordinate($0) }
-            .prefix(backfillBatchLimit)
+        // 1. Offline address parse — unbounded, no network, single save.
+        var parsed: [(Venue, String)] = []
+        for venue in venues where needsResolution(venue) {
+            if let name = AreaNameResolver.fromFormattedAddress(venue.formattedAddress) {
+                parsed.append((venue, name))
+            }
+        }
+        if !parsed.isEmpty {
+            for (venue, name) in parsed where needsResolution(venue) {
+                venue.locality = name
+            }
+            do {
+                try context.save()
+            } catch {
+                AppLog.data.error("Locality offline backfill save failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+
+        // Cheap probe so the steady state skips the network path (audit B-07).
+        var probe = FetchDescriptor<Venue>(
+            predicate: #Predicate<Venue> { venue in
+                venue.locality == nil || venue.locality == ""
+            }
+        )
+        probe.fetchLimit = 1
+        do {
+            if try context.fetch(probe).isEmpty { return }
+        } catch {
+            AppLog.data.error("Locality backfill probe failed: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+
+        guard await isNetworkSatisfied() else { return }
+
+        let remaining: [Venue]
+        do {
+            remaining = try context.fetch(FetchDescriptor<Venue>())
+        } catch {
+            AppLog.data.error("Locality backfill refetch failed: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+
+        let pending = remaining
+            .filter {
+                needsResolution($0)
+                    && hasValidCoordinate($0)
+                    && !skippedNetworkIDs.contains($0.id)
+            }
+            .prefix(AreaResolutionTuning.backfillBatchLimit)
         guard !pending.isEmpty else { return }
 
         var resolved: [(Venue, String)] = []
         for venue in pending {
-            if let name = await resolvedAreaName(for: venue) {
+            if let name = await resolvedAreaName(for: venue, allowAddressParse: false) {
                 resolved.append((venue, name))
+            } else {
+                skippedNetworkIDs.insert(venue.id)
             }
-            try? await Task.sleep(nanoseconds: backfillSpacingNanoseconds)
+            try? await Task.sleep(nanoseconds: AreaResolutionTuning.backfillSpacingNanoseconds)
         }
 
         guard !resolved.isEmpty else { return }
         for (venue, name) in resolved where needsResolution(venue) {
             venue.locality = name
         }
-        try? context.save()
+        do {
+            try context.save()
+        } catch {
+            AppLog.data.error("Locality backfill save failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     // MARK: - Internals
@@ -74,16 +142,18 @@ enum AreaResolutionService {
         return !(venue.latitude == 0 && venue.longitude == 0)
     }
 
-    /// Reverse geocodes and returns the preferred area name without mutating the venue.
-    private static func resolvedAreaName(for venue: Venue) async -> String? {
+    private static func resolvedAreaName(for venue: Venue, allowAddressParse: Bool = true) async -> String? {
         guard needsResolution(venue), hasValidCoordinate(venue) else { return nil }
+        if allowAddressParse, let parsed = AreaNameResolver.fromFormattedAddress(venue.formattedAddress) {
+            return parsed
+        }
         do {
             return try await reverseGeocodeAreaName(
                 latitude: venue.latitude,
                 longitude: venue.longitude
             )
         } catch {
-            // Best-effort: leave locality nil for a later backfill.
+            AppLog.data.info("Reverse geocode failed: \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }
@@ -93,20 +163,7 @@ enum AreaResolutionService {
         guard let request = MKReverseGeocodingRequest(location: location) else { return nil }
         let mapItems = try await request.mapItems
         guard let mapItem = mapItems.first else { return nil }
-        return preferredAreaName(from: mapItem)
-    }
-
-    /// `addressRepresentations.cityName` is MapKit's iOS 26 locality (suburb/town) source.
-    /// Venues that resolve without a city name stay unresolved for a later backfill pass.
-    private static func preferredAreaName(from mapItem: MKMapItem) -> String? {
-        cleaned(mapItem.addressRepresentations?.cityName)
-    }
-
-    private static func cleaned(_ value: String?) -> String? {
-        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
-            return nil
-        }
-        return trimmed
+        return AreaNameResolver.preferredAreaName(from: mapItem)
     }
 
     private static func isNetworkSatisfied() async -> Bool {

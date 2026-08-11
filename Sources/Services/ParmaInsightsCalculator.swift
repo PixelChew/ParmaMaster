@@ -52,9 +52,8 @@ enum ParmaInsightsCalculator {
         let componentAverages = Dictionary(uniqueKeysWithValues: componentPairs)
         let uniqueLocalities = Set(
             entries.compactMap { entry -> String? in
-                guard let locality = entry.venue?.locality?.trimmingCharacters(in: .whitespacesAndNewlines),
-                      !locality.isEmpty else { return nil }
-                return locality
+                guard let locality = AreaNameResolver.cleaned(entry.venue?.locality) else { return nil }
+                return AreaNameResolver.normalisedKey(locality)
             }
         )
 

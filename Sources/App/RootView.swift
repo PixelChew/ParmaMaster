@@ -11,7 +11,6 @@ struct RootView: View {
     @Environment(LocationService.self) private var locationService
     @Environment(NotificationService.self) private var notificationService
     @Environment(PubDetectionService.self) private var pubDetection
-    @Query private var entries: [ParmaEntry]
 
     var body: some View {
         @Bindable var router = router
@@ -36,52 +35,52 @@ struct RootView: View {
             AreasListView()
         }
         .task {
+            // The location pipeline itself is wired in ParmaMasterApp.init so
+            // background relaunch events are never dropped; this task handles
+            // the parts that need the environment's model context and scene.
             backupService.configure(context: modelContext, settings: settings, photoStore: photoStore)
             await notificationService.refreshStatus()
-            configureLocationPipeline(sceneIsActive: scenePhase == .active)
+            applyLocationPlan(sceneIsActive: scenePhase == .active)
+            consumePendingDeepLink()
             await AreaResolutionService.backfillMissingLocalities(in: modelContext)
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
-                configureLocationPipeline(sceneIsActive: true)
+                applyLocationPlan(sceneIsActive: true)
                 Task { await runForegroundVenueCheck() }
             case .background:
-                configureLocationPipeline(sceneIsActive: false)
+                applyLocationPlan(sceneIsActive: false)
+                settings.flushPendingPersist()
                 Task { await backupService.performAutomaticBackupIfNeeded() }
             default:
                 break
             }
         }
         .onChange(of: settings.locationUseEnabled) { _, _ in
-            configureLocationPipeline(sceneIsActive: scenePhase == .active)
+            applyLocationPlan(sceneIsActive: scenePhase == .active)
         }
         .onChange(of: settings.locationRemindersEnabled) { _, _ in
-            configureLocationPipeline(sceneIsActive: scenePhase == .active)
+            applyLocationPlan(sceneIsActive: scenePhase == .active)
+        }
+        .onChange(of: locationService.authorizationStatus) { _, _ in
+            applyLocationPlan(sceneIsActive: scenePhase == .active)
         }
         .onReceive(NotificationCenter.default.publisher(for: .parmaNotificationDeepLink)) { notification in
             handleDeepLink(notification.userInfo ?? [:])
         }
     }
 
-    private func configureLocationPipeline(sceneIsActive: Bool) {
-        locationService.onLocationUpdate = { location in
-            Task { @MainActor in
-                await pubDetection.process(location: location, entries: entries, settings: settings)
-            }
-        }
-        switch LocationActivityPolicy.mode(
+    private func applyLocationPlan(sceneIsActive: Bool) {
+        let plan = LocationActivityPolicy.plan(
             locationUseEnabled: settings.locationUseEnabled,
             remindersEnabled: settings.locationRemindersEnabled,
             authorizationStatus: locationService.authorizationStatus,
             sceneIsActive: sceneIsActive
-        ) {
-        case .stopped:
-            locationService.stopUpdates()
-        case .foreground:
-            locationService.startForegroundUpdates()
-        case .background:
-            locationService.requestAlwaysAndStartBackgroundUpdates()
+        )
+        locationService.apply(plan)
+        if plan.backgroundMonitoring {
+            pubDetection.refreshKnownVenues()
         }
     }
 
@@ -89,23 +88,29 @@ struct RootView: View {
         guard settings.hasCompletedOnboarding, settings.locationUseEnabled else { return }
         do {
             let location = try await locationService.currentLocation()
-            await pubDetection.process(
-                location: location,
-                entries: entries,
-                settings: settings,
-                foregroundCheck: true
-            )
+            await pubDetection.process(location: location, foregroundCheck: true)
         } catch {
             // The Home and Settings views expose the degraded location state.
+            AppLog.location.info("Foreground venue check skipped: \(error.localizedDescription)")
         }
     }
 
+    private func consumePendingDeepLink() {
+        guard let pending = AppDelegate.consumePendingDeepLink() else { return }
+        handleDeepLink(pending)
+    }
+
     private func handleDeepLink(_ userInfo: [AnyHashable: Any]) {
+        // Any handled link supersedes a stashed cold-start payload.
+        _ = AppDelegate.consumePendingDeepLink()
         if let idString = userInfo["entryID"] as? String,
-           let id = UUID(uuidString: idString),
-           let entry = entries.first(where: { $0.id == id }) {
-            router.openLogEntry(entry)
-            return
+           let id = UUID(uuidString: idString) {
+            var descriptor = FetchDescriptor<ParmaEntry>(predicate: #Predicate { $0.id == id })
+            descriptor.fetchLimit = 1
+            if let entry = try? modelContext.fetch(descriptor).first {
+                router.openLogEntry(entry)
+                return
+            }
         }
 
         if let encoded = userInfo["venue"] as? String,

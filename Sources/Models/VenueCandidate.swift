@@ -8,6 +8,8 @@ struct VenueCandidate: Identifiable, Hashable, Codable, Sendable {
     var formattedAddress: String
     var latitude: Double
     var longitude: Double
+    /// Suburb/town captured from Maps when available; used for Areas visited.
+    var locality: String?
 
     var id: String { VenueIdentity.key(for: self) }
 
@@ -23,14 +25,24 @@ struct VenueCandidate: Identifiable, Hashable, Codable, Sendable {
             ?? "Address unavailable"
         latitude = mapItem.location.coordinate.latitude
         longitude = mapItem.location.coordinate.longitude
+        locality = AreaNameResolver.preferredAreaName(from: mapItem)
+            ?? AreaNameResolver.fromFormattedAddress(formattedAddress)
     }
 
-    init(mapItemIdentifier: String?, name: String, formattedAddress: String, latitude: Double, longitude: Double) {
+    init(
+        mapItemIdentifier: String?,
+        name: String,
+        formattedAddress: String,
+        latitude: Double,
+        longitude: Double,
+        locality: String? = nil
+    ) {
         self.mapItemIdentifier = mapItemIdentifier
         self.name = name
         self.formattedAddress = formattedAddress
         self.latitude = latitude
         self.longitude = longitude
+        self.locality = locality ?? AreaNameResolver.fromFormattedAddress(formattedAddress)
     }
 }
 
@@ -39,7 +51,13 @@ enum VenueIdentity {
         if let mapItemIdentifier = venue.mapItemIdentifier, !mapItemIdentifier.isEmpty {
             return "map:\(mapItemIdentifier)"
         }
+        return fallbackKey(for: venue)
+    }
 
+    /// The identity a venue would have without a Maps identifier. Exposed so
+    /// indexed lookups can match a map-identified candidate against a venue
+    /// that was stored before its Maps identifier was known.
+    static func fallbackKey(for venue: VenueCandidate) -> String {
         let roundedLatitude = (venue.latitude * 1_000).rounded() / 1_000
         let roundedLongitude = (venue.longitude * 1_000).rounded() / 1_000
         return "fallback:\(normalise(venue.name))|\(normalise(venue.formattedAddress))|\(roundedLatitude)|\(roundedLongitude)"

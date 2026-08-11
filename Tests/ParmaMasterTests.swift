@@ -368,18 +368,6 @@ final class ParmaMasterTests: XCTestCase {
         XCTAssertEqual(upgraded.entries.first?.photoData, Data([1, 2, 3]))
     }
 
-    func testCurrentUserProfilePersistsDisplayNameLocally() {
-        let suiteName = "CurrentUserProfileTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        let profile = CurrentUserProfile(defaults: defaults)
-        XCTAssertEqual(profile.displayName, "Hamish")
-        profile.displayName = "Test User"
-        XCTAssertEqual(CurrentUserProfile(defaults: defaults).displayName, "Test User")
-        XCTAssertTrue(HomeGreeting.candidates(at: greetingDate(hour: 9), calendar: greetingCalendar).contains("Welcome back."))
-    }
-
     func testHomeGreetingSessionKeepsOneGreetingForItsLifetime() {
         let session = HomeGreetingSession()
         XCTAssertEqual(session.message, session.message)
@@ -433,51 +421,74 @@ final class ParmaMasterTests: XCTestCase {
         XCTAssertTrue(RatingSnapshot.blank(configuration: configuration).enabledComponents.allSatisfy { $0.displayMode == .stars })
     }
 
-    func testLocationActivityRequiresEnabledRemindersAndAlwaysAuthorizationForBackground() {
+    func testLocationActivityPlanIsStoppedWheneverLocationUseIsDisabled() {
         XCTAssertEqual(
-            LocationActivityPolicy.mode(
-                locationUseEnabled: true,
+            LocationActivityPolicy.plan(
+                locationUseEnabled: false,
+                remindersEnabled: true,
+                authorizationStatus: .authorizedAlways,
+                sceneIsActive: true
+            ),
+            .stopped
+        )
+        XCTAssertEqual(
+            LocationActivityPolicy.plan(
+                locationUseEnabled: false,
                 remindersEnabled: false,
-                authorizationStatus: .authorizedAlways,
+                authorizationStatus: .denied,
                 sceneIsActive: false
             ),
             .stopped
-        )
-        XCTAssertEqual(
-            LocationActivityPolicy.mode(
-                locationUseEnabled: true,
-                remindersEnabled: true,
-                authorizationStatus: .authorizedWhenInUse,
-                sceneIsActive: false
-            ),
-            .stopped
-        )
-        XCTAssertEqual(
-            LocationActivityPolicy.mode(
-                locationUseEnabled: true,
-                remindersEnabled: true,
-                authorizationStatus: .authorizedAlways,
-                sceneIsActive: false
-            ),
-            .background
         )
     }
 
-    func testLocationActivityUsesForegroundUpdatesOnlyWhileSceneIsActive() {
-        XCTAssertEqual(
-            LocationActivityPolicy.mode(
-                locationUseEnabled: true,
-                remindersEnabled: false,
-                authorizationStatus: .authorizedWhenInUse,
-                sceneIsActive: true
-            ),
-            .foreground
+    func testLocationActivityPlanEnablesBackgroundMonitoringWithRemindersAndAlwaysAuthorization() {
+        let backgroundOnly = LocationActivityPolicy.plan(
+            locationUseEnabled: true,
+            remindersEnabled: true,
+            authorizationStatus: .authorizedAlways,
+            sceneIsActive: false
         )
+        XCTAssertTrue(backgroundOnly.backgroundMonitoring)
+        XCTAssertFalse(backgroundOnly.continuousForegroundUpdates)
+
+        let sceneActive = LocationActivityPolicy.plan(
+            locationUseEnabled: true,
+            remindersEnabled: true,
+            authorizationStatus: .authorizedAlways,
+            sceneIsActive: true
+        )
+        XCTAssertTrue(sceneActive.backgroundMonitoring)
+        XCTAssertTrue(sceneActive.continuousForegroundUpdates)
+    }
+
+    func testLocationActivityPlanWithWhenInUseAuthorizationIsForegroundOnly() {
+        let sceneActive = LocationActivityPolicy.plan(
+            locationUseEnabled: true,
+            remindersEnabled: true,
+            authorizationStatus: .authorizedWhenInUse,
+            sceneIsActive: true
+        )
+        XCTAssertFalse(sceneActive.backgroundMonitoring)
+        XCTAssertTrue(sceneActive.continuousForegroundUpdates)
+
         XCTAssertEqual(
-            LocationActivityPolicy.mode(
+            LocationActivityPolicy.plan(
+                locationUseEnabled: true,
+                remindersEnabled: true,
+                authorizationStatus: .authorizedWhenInUse,
+                sceneIsActive: false
+            ),
+            .stopped
+        )
+    }
+
+    func testLocationActivityPlanWithoutRemindersStopsWhenSceneIsInactive() {
+        XCTAssertEqual(
+            LocationActivityPolicy.plan(
                 locationUseEnabled: true,
                 remindersEnabled: false,
-                authorizationStatus: .authorizedWhenInUse,
+                authorizationStatus: .authorizedAlways,
                 sceneIsActive: false
             ),
             .stopped
@@ -486,9 +497,10 @@ final class ParmaMasterTests: XCTestCase {
 
     func testRepositoryRejectsAnOverMaximumRating() throws {
         let context = try makeContext()
+        let repository = LocalParmaRepository()
 
         XCTAssertThrowsError(
-            try EntryRepository.create(
+            try repository.create(
                 venue: venue(name: "Invalid Rating Pub"),
                 rating: makeRating(parma: 6, chips: 2, salad: 2),
                 notes: AttributedString(),
@@ -518,11 +530,12 @@ final class ParmaMasterTests: XCTestCase {
 
     func testChangingRatingArchivesPreviousSnapshot() throws {
         let context = try makeContext()
+        let repository = LocalParmaRepository()
         let entry = makeEntry(name: "The Test Pub", rating: makeRating(parma: 4, chips: 2, salad: 2))
         context.insert(entry)
         try context.save()
 
-        try EntryRepository.update(
+        try repository.update(
             entry,
             venue: venue(name: "The Test Pub"),
             rating: makeRating(parma: Decimal(string: "4.5")!, chips: 2, salad: 2),
@@ -539,12 +552,13 @@ final class ParmaMasterTests: XCTestCase {
 
     func testChangingOnlyNotesDoesNotCreateHistory() throws {
         let context = try makeContext()
+        let repository = LocalParmaRepository()
         let rating = makeRating(parma: 4, chips: 2, salad: 2)
         let entry = makeEntry(name: "The Notes Pub", rating: rating)
         context.insert(entry)
         try context.save()
 
-        try EntryRepository.update(
+        try repository.update(
             entry,
             venue: venue(name: "The Notes Pub"),
             rating: rating,
@@ -556,6 +570,125 @@ final class ParmaMasterTests: XCTestCase {
 
         XCTAssertTrue(entry.revisions.isEmpty)
         XCTAssertEqual(entry.searchableNotes, "Corrected note")
+    }
+
+    func testFindExistingReturnsTheSeededEntryForTheSameCandidate() throws {
+        let context = try makeContext()
+        let repository = LocalParmaRepository()
+        let candidate = venue(name: "Lookup Hotel")
+        let created = try repository.create(
+            venue: candidate,
+            rating: makeRating(parma: 4, chips: 2, salad: 2),
+            notes: AttributedString(),
+            photoFilename: nil,
+            in: context
+        )
+
+        let found = try XCTUnwrap(repository.findExisting(for: candidate, in: context))
+        XCTAssertEqual(found.id, created.id)
+    }
+
+    func testFindExistingPrefersMapIdentifierOverAChangedName() throws {
+        let context = try makeContext()
+        let repository = LocalParmaRepository()
+        let original = venue(name: "Identifier Hotel")
+        let created = try repository.create(
+            venue: original,
+            rating: makeRating(parma: 4, chips: 2, salad: 2),
+            notes: AttributedString(),
+            photoFilename: nil,
+            in: context
+        )
+
+        let renamed = VenueCandidate(
+            mapItemIdentifier: original.mapItemIdentifier,
+            name: "Rebranded Identifier Hotel",
+            formattedAddress: "2 Different Street, Melbourne VIC",
+            latitude: original.latitude,
+            longitude: original.longitude
+        )
+
+        let found = try XCTUnwrap(repository.findExisting(for: renamed, in: context))
+        XCTAssertEqual(found.id, created.id)
+    }
+
+    func testFindExistingMatchesFallbackIdentityWithoutMapIdentifier() throws {
+        let context = try makeContext()
+        let repository = LocalParmaRepository()
+        let seeded = VenueCandidate(
+            mapItemIdentifier: nil,
+            name: "Fallback Arms",
+            formattedAddress: "9 Fallback Lane, Melbourne VIC",
+            latitude: -37.812345,
+            longitude: 144.961234
+        )
+        let created = try repository.create(
+            venue: seeded,
+            rating: makeRating(parma: 4, chips: 2, salad: 2),
+            notes: AttributedString(),
+            photoFilename: nil,
+            in: context
+        )
+
+        // Same name and address, a few tens of metres away, so the coordinates
+        // still round to the same three-decimal fallback key.
+        let lookup = VenueCandidate(
+            mapItemIdentifier: nil,
+            name: "Fallback Arms",
+            formattedAddress: "9 Fallback Lane, Melbourne VIC",
+            latitude: -37.81201,
+            longitude: 144.96149
+        )
+
+        let found = try XCTUnwrap(repository.findExisting(for: lookup, in: context))
+        XCTAssertEqual(found.id, created.id)
+    }
+
+    func testFindExistingReturnsNilForAnUnrelatedCandidate() throws {
+        let context = try makeContext()
+        let repository = LocalParmaRepository()
+        try repository.create(
+            venue: venue(name: "Somewhere Hotel"),
+            rating: makeRating(parma: 4, chips: 2, salad: 2),
+            notes: AttributedString(),
+            photoFilename: nil,
+            in: context
+        )
+
+        let unrelated = VenueCandidate(
+            mapItemIdentifier: "map-unrelated",
+            name: "Unrelated Tavern",
+            formattedAddress: "500 Elsewhere Road, Sydney NSW",
+            latitude: -33.87,
+            longitude: 151.21
+        )
+
+        XCTAssertNil(try repository.findExisting(for: unrelated, in: context))
+    }
+
+    func testCreateTwiceWithTheSameCandidateReturnsTheExistingEntry() throws {
+        let context = try makeContext()
+        let repository = LocalParmaRepository()
+        let candidate = venue(name: "Dedup Hotel")
+        let rating = makeRating(parma: 4, chips: 2, salad: 2)
+
+        let first = try repository.create(
+            venue: candidate,
+            rating: rating,
+            notes: AttributedString(),
+            photoFilename: nil,
+            in: context
+        )
+        let second = try repository.create(
+            venue: candidate,
+            rating: rating,
+            notes: AttributedString(),
+            photoFilename: nil,
+            in: context
+        )
+
+        XCTAssertEqual(first.id, second.id)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<ParmaEntry>()).count, 1)
     }
 
     func testVenueIdentityPrefersMapIdentifierAndFallbackUsesProximity() {

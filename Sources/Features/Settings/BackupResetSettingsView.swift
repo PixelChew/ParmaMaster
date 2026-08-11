@@ -110,17 +110,21 @@ struct BackupResetSettingsView: View {
     }
 
     private func performBackup() {
-        do { try backupService.backupNow() }
-        catch { errorMessage = (error as? LocalizedError)?.errorDescription ?? "The backup destination is unavailable. The previous backup was left unchanged." }
+        Task {
+            do { try await backupService.backupNow() }
+            catch { errorMessage = (error as? LocalizedError)?.errorDescription ?? "The backup destination is unavailable. The previous backup was left unchanged." }
+        }
     }
 
     private func restoreBackup() {
         guard let pendingRestoreURL else { return }
-        do {
-            try backupService.restore(from: pendingRestoreURL)
-            self.pendingRestoreURL = nil
-        } catch {
-            errorMessage = (error as? LocalizedError)?.errorDescription ?? "The backup could not be restored. Current data was not intentionally changed."
+        Task {
+            do {
+                try await backupService.restore(from: pendingRestoreURL)
+                self.pendingRestoreURL = nil
+            } catch {
+                errorMessage = (error as? LocalizedError)?.errorDescription ?? "The backup could not be restored. Current data was not intentionally changed."
+            }
         }
     }
 
