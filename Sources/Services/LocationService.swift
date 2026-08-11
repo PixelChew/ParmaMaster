@@ -22,9 +22,8 @@ struct MonitoredVenue: Equatable, Sendable {
 ///   relaunch the app on events, and need no `UIBackgroundModes` entry.
 ///
 /// The previous implementation held `startUpdatingLocation()` continuously in
-/// the background (audit finding B-01), which was the root cause of the
-/// reported battery drain and also silently died after an automatic pause
-/// (B-05). Continuous updates are now foreground-only by construction.
+/// the background, which caused battery drain and could silently stop after an
+/// automatic pause. Continuous updates are now foreground-only by construction.
 @MainActor
 @Observable
 final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate {
@@ -83,7 +82,7 @@ final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate
     // MARK: - Activity plan
 
     /// Applies the desired activity plan idempotently: repeated calls with the
-    /// same plan make no state changes (audit finding A-02).
+    /// same plan make no state changes.
     func apply(_ plan: LocationActivityPlan) {
         if plan.backgroundMonitoring {
             startBackgroundMonitoring()
@@ -201,7 +200,7 @@ final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate
     // MARK: - One-shot location
 
     /// Single-flight one-shot fix with a timeout, so concurrent callers share
-    /// one request and nobody awaits forever (audit finding A-03).
+    /// one request and nobody awaits forever.
     func currentLocation() async throws -> CLLocation {
         if let latestLocation,
            Date.now.timeIntervalSince(latestLocation.timestamp) < LocationTuning.cachedFixMaxAge {
