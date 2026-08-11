@@ -1,12 +1,13 @@
+import Observation
 import SwiftData
 import SwiftUI
 
 struct HomeView: View {
     @Environment(AppRouter.self) private var router
     @Environment(AppSettings.self) private var settings
+    @Environment(HomeGreetingSession.self) private var homeGreeting
     @Environment(PubDetectionService.self) private var pubDetection
     @Query private var entries: [ParmaEntry]
-    @State private var greeting = HomeGreeting.message()
 
     private var recentEntries: [ParmaEntry] {
         entries.sorted { $0.currentRatingDate > $1.currentRatingDate }
@@ -16,7 +17,7 @@ struct HomeView: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 20) {
-                    BrandedHeading(title: greeting)
+                    BrandedHeading(title: homeGreeting.message)
                         .padding(.top, 16)
 
                     if let candidate = pubDetection.currentCandidate {
@@ -73,6 +74,16 @@ struct HomeView: View {
         }
     }
 
+}
+
+@MainActor
+@Observable
+final class HomeGreetingSession {
+    let message: String
+
+    init() {
+        message = HomeGreeting.message()
+    }
 }
 
 enum HomeGreeting {
