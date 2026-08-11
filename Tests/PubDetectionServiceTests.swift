@@ -132,6 +132,21 @@ final class PubDetectionServiceTests: XCTestCase {
         XCTAssertEqual(harness.notifier.cancelledVenueIDs.count, 1)
     }
 
+    func testPendingVisitGeofenceExitBeforeDwellCancelsPendingReminder() async throws {
+        let harness = try makeHarness()
+        defer { harness.cleanUp() }
+        harness.mapSearch.results = [pubCandidate(named: "Background Exit Hotel")]
+
+        await harness.service.process(location: harness.userLocation(), foregroundCheck: true)
+        XCTAssertEqual(harness.notifier.scheduled.count, 1)
+
+        harness.clock.advance(by: 60)
+        harness.service.processPendingVisitExit()
+
+        XCTAssertNil(harness.service.currentCandidate)
+        XCTAssertEqual(harness.notifier.cancelledVenueIDs.count, 1)
+    }
+
     func testSustainedDepartureClearsTheVisitSession() async throws {
         let harness = try makeHarness()
         defer { harness.cleanUp() }
