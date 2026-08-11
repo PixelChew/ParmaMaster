@@ -14,7 +14,7 @@ struct ParmaLogView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        // Sorted exactly once per render (audit P-01/P-02 follow-up).
+        // Sort exactly once per render.
         let sortedEntries = EntrySorter.sorted(entries, by: sortField, direction: sortDirection)
         NavigationStack {
             Group {
