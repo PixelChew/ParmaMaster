@@ -44,6 +44,19 @@ final class ParmaInsightsCalculatorTests: XCTestCase {
         XCTAssertTrue(insights.highestEntries.isEmpty)
         XCTAssertTrue(insights.perfectEntries.isEmpty)
         XCTAssertEqual(insights.ratingsSubmitted, 0)
+        XCTAssertEqual(insights.areasVisited, 0)
+    }
+
+    func testAreasVisitedDedupesLocalitiesAndIgnoresUnresolved() {
+        let fitzroyA = entry("Fitzroy A", score: 8, maximum: 10, locality: "Fitzroy")
+        let fitzroyB = entry("Fitzroy B", score: 7, maximum: 10, locality: "Fitzroy")
+        let brunswick = entry("Brunswick", score: 6, maximum: 10, locality: "Brunswick")
+        let unresolved = entry("Unresolved", score: 5, maximum: 10, locality: nil)
+        let blank = entry("Blank", score: 4, maximum: 10, locality: "   ")
+        let insights = ParmaInsightsCalculator.calculate([fitzroyA, fitzroyB, brunswick, unresolved, blank])
+
+        XCTAssertEqual(insights.areasVisited, 2)
+        XCTAssertEqual(insights.parmasLogged, 5)
     }
 
     private func entry(
@@ -52,7 +65,8 @@ final class ParmaInsightsCalculatorTests: XCTestCase {
         maximum: Decimal,
         chips: Decimal? = nil,
         chipsMaximum: Decimal = 1,
-        revisions: Int = 0
+        revisions: Int = 0,
+        locality: String? = nil
     ) -> ParmaEntry {
         let parmaMaximum = maximum - (chips == nil ? 0 : chipsMaximum)
         let rating = RatingSnapshot(
@@ -64,6 +78,7 @@ final class ParmaInsightsCalculatorTests: XCTestCase {
             overallDisplayMode: .numeric
         )
         let item = ParmaEntry(venueIdentity: "map:\(name)", mapItemIdentifier: nil, venueName: name, formattedAddress: "Test address", latitude: -37.8, longitude: 144.9, rating: rating)
+        item.venue?.locality = locality
         item.revisions = (0..<revisions).map { _ in RatingRevision(timestamp: .now, rating: rating, entry: item) }
         return item
     }

@@ -1,13 +1,13 @@
-# Parma Master 1.2
+# Parma Master 1.3
 
 A local-first iPhone app for rating, remembering, and discovering great parmas.
 
 Parma Master helps you keep a personal log of venues, rate each parma by its components, add notes and photos, and find places worth returning to. It is built natively for iPhone with SwiftUI and Apple frameworks.
 
-V1.2 adds Insights, a local-first view of where you have logged parmas and
-what your rating history looks like overall. It combines a native MapKit map
-with derived statistics and introduces no server, login, analytics, ads,
-CloudKit, or third-party runtime dependency.
+V1.3 Home Refresh adds Home stats, area tracking, and configurable re-run
+suggestions on top of the Insights map and analytics introduced in V1.2. The
+app introduces no server, login, analytics, ads, CloudKit, or third-party
+runtime dependency.
 
 ## What you can do
 
@@ -21,6 +21,24 @@ CloudKit, or third-party runtime dependency.
 - Back up and restore entries, rating history, notes, settings, and photos through a user-selected Files folder.
 - Personalise the appearance and scoring behaviour to match how you judge a great parma.
 
+## V1.3 Home Refresh
+
+- **Home stats row** (shown when there are 2+ entries): Parmas logged and Areas
+  visited. Areas are unique MapKit localities (suburb/town); the Areas card
+  opens an Insights sheet listing each area with venue and log counts, search,
+  and sort.
+- **Re-run suggestion card** on Home for venues not logged for a configurable
+  number of months (default 5). Tap to rate again, or dismiss to hide the card
+  for a configurable window. The card yields to the location “Welcome to”
+  suggestion when that is active, and stays hidden when nothing is eligible.
+- **Per-venue opt-out** from Parma Details so a place can be excluded from
+  re-run suggestions permanently.
+- **Behaviour settings** for enabling suggestions, the stale-months threshold,
+  and how long dismissed (or re-logged) suggestions stay hidden.
+- **Insights “At a glance”** rebalanced to six cards, including Areas visited
+  and Parmas logged this year, with ratings submitted as subtext under Parmas
+  logged.
+
 ## Insights
 
 Insights is a normal tab between Parma Log and Settings. It includes:
@@ -28,27 +46,26 @@ Insights is a normal tab between Parma Log and Settings. It includes:
 - A selectable MapKit map with one marker per canonical venue. Markers show a
   comparable normalised `/10` score, and the camera frames one or many saved
   locations automatically.
-- Headline cards for Parmas logged, average rating, highest rating, and lowest
-  rating. Cross-entry comparisons use `currentTotal / currentMaximum`, never
-  raw totals from different rating scales.
-- Highest and lowest venue cards, perfect-score venues, ratings submitted,
-  most revisited places, Parmas logged this year, most recently logged, and
-  independently normalised Parma, Chips, and Salad averages.
+- An “At a glance” grid for Parmas logged (with ratings-submitted subtext),
+  average rating, highest rating, lowest rating, areas visited, and Parmas
+  logged this year. Cross-entry comparisons use `currentTotal / currentMaximum`,
+  never raw totals from different rating scales.
+- Highest and lowest venue cards, perfect-score venues, and independently
+  normalised Parma, Chips, and Salad averages.
 - Empty and low-data states, invalid-coordinate protection, accessible marker
   labels, and actions that open the existing Parma Details flow.
 
 Insights values are calculated in memory from current canonical `ParmaEntry`
 records. Historical `RatingRevision` snapshots contribute only to explicitly
-historical metrics such as ratings submitted and most revisited; they do not
-create duplicate venues or map pins. Derived statistics are not persisted, so
-they stay correct after edits, rerates, deletions, restores, and rating-scale
-changes.
+historical metrics such as ratings submitted; they do not create duplicate
+venues or map pins. Derived statistics are not persisted, so they stay correct
+after edits, rerates, deletions, restores, and rating-scale changes.
 
 ## Built with
 
 - SwiftUI for the interface
 - SwiftData for local persistence
-- MapKit and Core Location for venue search and location-based suggestions
+- MapKit and Core Location for venue search, area resolution, and location-based suggestions
 - UserNotifications for optional local reminders
 - PhotosUI, UIKit, and the camera for image capture and selection
 
@@ -73,25 +90,26 @@ On a physical iPhone, Xcode may ask you to enable Developer Mode or trust the de
 
 - `Sources/App`: app lifecycle, dependency wiring, navigation, tabs, sheets, and deep links
 - `Sources/Models`: venues, rating snapshots, settings, backup payloads, and venue identity
-- `Sources/Services`: repository, photo storage, Apple Maps search, backups, notifications, location, and venue-detection policy
+- `Sources/Services`: repository, photo storage, Apple Maps search, backups, notifications, location, venue-detection policy, area resolution, and re-run suggestions
 - `Sources/Features/Onboarding`: guided permission setup
-- `Sources/Features/Home`: recent entries and venue suggestions
+- `Sources/Features/Home`: recent entries, stats row, re-run suggestions, and venue suggestions
 - `Sources/Features/Logger`: venue selection, scoring, notes, photos, duplicates, edits, and re-ratings
 - `Sources/Features/ParmaLog`: the canonical venue list and sorting
 - `Sources/Features/Search`: search across venues, addresses, and notes
-- `Sources/Features/Details`: scores, components, photos, notes, history, editing, and deletion
-- `Sources/Features/Insights`: the native map, statistic cards, venue insight cards, empty states, and existing-details routing
-- `Sources/Features/Settings`: appearance, scoring, behaviour, permissions, backups, and reset controls
+- `Sources/Features/Details`: scores, components, photos, notes, history, editing, deletion, and per-venue re-run opt-out
+- `Sources/Features/Insights`: the native map, statistic cards, venue insight cards, the areas list, empty states, and existing-details routing
+- `Sources/Features/Settings`: appearance, scoring, behaviour, Home re-run suggestion preferences, permissions, backups, and reset controls
 - `Sources/Shared`: brand styling, DM Serif typography, score displays, cards, empty states, and reusable UI components
-- `Tests` and `UITests`: model, repository, backup, rating, Insights-calculator, and primary navigation coverage
+- `Tests` and `UITests`: model, repository, backup, rating, migration, re-run suggestion, Insights-calculator, and primary navigation coverage
 
 The data model keeps each venue as a canonical entry and stores rating revisions as immutable snapshots. This means changing the scoring configuration does not rewrite historical ratings.
 
 ## Verification
 
-The current V1.2 branch builds against the iOS 26 deployment target and passes
-the full iOS Simulator suite, including Insights normalisation, tie handling,
-perfect-score detection, component averages, zero-entry behavior, and the
+The current V1.3 branch builds against the iOS 26 deployment target and passes
+the full iOS Simulator suite, including V1→V3 migration, backup compatibility,
+re-run suggestion policy, Insights normalisation, tie handling, perfect-score
+detection, component averages, areas aggregation, zero-entry behavior, and the
 Insights tab empty-state UI flow.
 
 ## Permissions

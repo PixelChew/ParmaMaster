@@ -54,6 +54,29 @@ struct BehaviourSettingsView: View {
                 }
             }
 
+            Section {
+                Toggle("Suggest Re-runs", isOn: $settings.rerunSuggestionsEnabled)
+
+                if settings.rerunSuggestionsEnabled {
+                    Picker("Suggest after", selection: $settings.rerunStaleMonths) {
+                        Text("3 months").tag(3)
+                        Text("5 months").tag(5)
+                        Text("6 months").tag(6)
+                        Text("12 months").tag(12)
+                    }
+
+                    Picker("Hide dismissed for", selection: $settings.rerunHideMonths) {
+                        Text("1 month").tag(1)
+                        Text("2 months").tag(2)
+                        Text("3 months").tag(3)
+                    }
+                }
+            } header: {
+                Text("Home suggestions")
+            } footer: {
+                Text("When enabled, Home may suggest a place you haven’t logged recently. Dismissing or logging that place hides the card for the chosen period. The suggestion yields to a location welcome card when one is active.")
+            }
+
             Section("Onboarding") {
                 Button("Replay Onboarding", systemImage: "play.circle") {
                     settings.hasCompletedOnboarding = false

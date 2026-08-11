@@ -7,8 +7,8 @@ struct ParmaMasterApp: App {
 
     private let modelContainer: ModelContainer
     @State private var settings: AppSettings
-    @State private var homeGreetingSession: HomeGreetingSession
     @State private var currentUser: CurrentUserProfile
+    @State private var homeGreetingSession: HomeGreetingSession
     @State private var repository: LocalParmaRepository
     @State private var router: AppRouter
     @State private var photoStore: PhotoStore
@@ -16,16 +16,17 @@ struct ParmaMasterApp: App {
     @State private var locationService: LocationService
     @State private var notificationService: NotificationService
     @State private var pubDetectionService: PubDetectionService
+    @State private var rerunSuggestionService: RerunSuggestionService
 
     init() {
         modelContainer = try! ModelContainer(
-            for: Schema(versionedSchema: ParmaSchemaV2.self),
+            for: Schema(versionedSchema: ParmaSchemaV3.self),
             migrationPlan: ParmaMigrationPlan.self
         )
         let notificationService = NotificationService()
         let currentUser = CurrentUserProfile()
         _settings = State(initialValue: AppSettings())
-        _homeGreetingSession = State(initialValue: HomeGreetingSession(displayName: currentUser.displayName))
+        _homeGreetingSession = State(initialValue: HomeGreetingSession())
         _currentUser = State(initialValue: currentUser)
         _repository = State(initialValue: LocalParmaRepository())
         _router = State(initialValue: AppRouter())
@@ -34,6 +35,7 @@ struct ParmaMasterApp: App {
         _locationService = State(initialValue: LocationService())
         _notificationService = State(initialValue: notificationService)
         _pubDetectionService = State(initialValue: PubDetectionService(notificationService: notificationService))
+        _rerunSuggestionService = State(initialValue: RerunSuggestionService())
     }
 
     var body: some Scene {
@@ -41,8 +43,8 @@ struct ParmaMasterApp: App {
             RootView()
                 .modelContainer(modelContainer)
                 .environment(settings)
-                .environment(homeGreetingSession)
                 .environment(currentUser)
+                .environment(homeGreetingSession)
                 .environment(repository)
                 .environment(router)
                 .environment(photoStore)
@@ -50,6 +52,7 @@ struct ParmaMasterApp: App {
                 .environment(locationService)
                 .environment(notificationService)
                 .environment(pubDetectionService)
+                .environment(rerunSuggestionService)
                 .tint(settings.accentColor)
                 .preferredColorScheme(settings.theme.colorScheme)
         }

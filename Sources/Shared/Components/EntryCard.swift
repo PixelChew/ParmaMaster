@@ -6,10 +6,18 @@ struct EntryCard: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(entry.venueName)
-                    .font(BrandStyle.displayFont(22, relativeTo: .title3))
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(entry.venueName)
+                        .font(BrandStyle.displayFont(22, relativeTo: .title3))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                    if entry.venue?.excludedFromRerun == true {
+                        Image(systemName: "eye.slash")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel("Excluded from re-run suggestions")
+                    }
+                }
                 Text(componentSummary)
                     .font(.caption)
                     .foregroundStyle(.secondary)

@@ -98,7 +98,9 @@ final class BackupService {
                     name: venue.name,
                     formattedAddress: venue.formattedAddress,
                     latitude: venue.latitude,
-                    longitude: venue.longitude
+                    longitude: venue.longitude,
+                    locality: venue.locality,
+                    excludedFromRerun: venue.excludedFromRerun
                 )
             },
             entries: entries.map { entry in
@@ -203,7 +205,9 @@ final class BackupService {
                 name: backup.name,
                 formattedAddress: backup.formattedAddress,
                 latitude: backup.latitude,
-                longitude: backup.longitude
+                longitude: backup.longitude,
+                locality: backup.locality,
+                excludedFromRerun: backup.excludedFromRerun
             )
             restoredVenues[backup.id] = venue
             context.insert(venue)
