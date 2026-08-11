@@ -5,7 +5,7 @@ import UIKit
 
 /// Sendable disk accessor so photo bytes can be read off the main actor
 /// (e.g. from BackupService's detached export task) without touching
-/// PhotoStore's MainActor state (audit B-06).
+/// PhotoStore's MainActor state.
 struct PhotoDiskIO: Sendable {
     let directoryURL: URL
 
@@ -21,7 +21,7 @@ final class PhotoStore {
     let directoryURL: URL
 
     /// Decoded images keyed by filename ("thumb:"-prefixed for thumbnails).
-    /// NSCache evicts automatically under memory pressure (audit P-05).
+    /// NSCache evicts automatically under memory pressure.
     private let imageCache = NSCache<NSString, UIImage>()
 
     var diskIO: PhotoDiskIO {
@@ -67,7 +67,7 @@ final class PhotoStore {
     }
 
     /// Downsampled image for list rows and cards, decoded via ImageIO so the
-    /// full-size bitmap never enters memory (audit P-05).
+    /// full-size bitmap never enters memory.
     func thumbnail(for filename: String?) -> UIImage? {
         guard let filename else { return nil }
         let key = Self.thumbnailKey(for: filename)
