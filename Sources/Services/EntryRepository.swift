@@ -6,6 +6,7 @@ import SwiftData
 @MainActor
 protocol ParmaRepositoryProtocol: AnyObject {
     func findExisting(for venue: VenueCandidate, in entries: [ParmaEntry]) -> ParmaEntry?
+    func findExisting(for venue: VenueCandidate, in context: ModelContext) throws -> ParmaEntry?
     func create(venue: VenueCandidate, rating: RatingSnapshot, notes: AttributedString, photoFilename: String?, in context: ModelContext) throws -> ParmaEntry
     func update(_ entry: ParmaEntry, venue: VenueCandidate, rating: RatingSnapshot, notes: AttributedString, photoFilename: String?, deliberateRerating: Bool, in context: ModelContext) throws
     func delete(_ entry: ParmaEntry, photoStore: PhotoStore, in context: ModelContext) throws
@@ -19,6 +20,37 @@ final class LocalParmaRepository: ParmaRepositoryProtocol {
         entries.first { VenueIdentity.matches(venue, entry: $0) }
     }
 
+    /// Indexed lookup replacing the previous full-table linear scan (audit
+    /// finding P-04). Both `venueIdentity` and `id` are unique attributes, so
+    /// the store answers these predicates without materialising the table.
+    func findExisting(for venue: VenueCandidate, in context: ModelContext) throws -> ParmaEntry? {
+        guard let matched = try findVenue(matching: venue, in: context) else { return nil }
+        return matched.entries.max { $0.lastModifiedAt < $1.lastModifiedAt }
+    }
+
+    private func findVenue(matching candidate: VenueCandidate, in context: ModelContext) throws -> Venue? {
+        let primaryKey = VenueIdentity.key(for: candidate)
+        let fallbackKey = VenueIdentity.fallbackKey(for: candidate)
+        let predicate: Predicate<Venue>
+        if let mapItemIdentifier = candidate.mapItemIdentifier, !mapItemIdentifier.isEmpty {
+            predicate = #Predicate { venue in
+                venue.venueIdentity == primaryKey
+                    || venue.venueIdentity == fallbackKey
+                    || venue.mapItemIdentifier == mapItemIdentifier
+            }
+        } else {
+            predicate = #Predicate { venue in
+                venue.venueIdentity == primaryKey || venue.venueIdentity == fallbackKey
+            }
+        }
+        let candidates = try context.fetch(FetchDescriptor<Venue>(predicate: predicate))
+        // An exact identity-key hit is authoritative even when the looser
+        // name/address/proximity verification fails (e.g. a venue renamed in
+        // Maps); anything else that fails verification is not a match.
+        return candidates.first { VenueIdentity.matches(candidate, venue: $0) }
+            ?? candidates.first { $0.venueIdentity == primaryKey }
+    }
+
     @discardableResult
     func create(
         venue candidate: VenueCandidate,
@@ -28,13 +60,16 @@ final class LocalParmaRepository: ParmaRepositoryProtocol {
         in context: ModelContext
     ) throws -> ParmaEntry {
         guard rating.hasValidScores else { throw EntryRepositoryError.invalidRating }
-        let entries = try context.fetch(FetchDescriptor<ParmaEntry>())
-        if let existing = findExisting(for: candidate, in: entries) { return existing }
+        if let existing = try findExisting(for: candidate, in: context) { return existing }
 
-        let venues = try context.fetch(FetchDescriptor<Venue>())
         let venue: Venue
-        if let existingVenue = venues.first(where: { VenueIdentity.matches(candidate, venue: $0) }) {
+        if let existingVenue = try findVenue(matching: candidate, in: context) {
             venue = existingVenue
+            AreaResolutionService.applyImmediateLocality(
+                to: venue,
+                candidateLocality: candidate.locality,
+                formattedAddress: candidate.formattedAddress
+            )
         } else {
             venue = Venue(
                 mapItemIdentifier: candidate.mapItemIdentifier,
@@ -42,7 +77,9 @@ final class LocalParmaRepository: ParmaRepositoryProtocol {
                 name: candidate.name,
                 formattedAddress: candidate.formattedAddress,
                 latitude: candidate.latitude,
-                longitude: candidate.longitude
+                longitude: candidate.longitude,
+                locality: AreaNameResolver.cleaned(candidate.locality)
+                    ?? AreaNameResolver.fromFormattedAddress(candidate.formattedAddress)
             )
             context.insert(venue)
         }
@@ -91,6 +128,13 @@ final class LocalParmaRepository: ParmaRepositoryProtocol {
         if coordinatesChanged {
             currentVenue?.locality = nil
         }
+        if let currentVenue {
+            AreaResolutionService.applyImmediateLocality(
+                to: currentVenue,
+                candidateLocality: candidate.locality,
+                formattedAddress: candidate.formattedAddress
+            )
+        }
         entry.notes = notes
         entry.photoFilename = photoFilename
         entry.lastModifiedAt = .now
@@ -111,6 +155,9 @@ final class LocalParmaRepository: ParmaRepositoryProtocol {
     }
 
     func reset(photoStore: PhotoStore, in context: ModelContext) throws {
+        // Batch deletes (`context.delete(model:)`) trip the mandatory inverse
+        // between `Venue.entries` and `ParmaEntry.venue`, so reset removes
+        // objects individually: entries first (cascading revisions), venues after.
         let entries = try context.fetch(FetchDescriptor<ParmaEntry>())
         for entry in entries { context.delete(entry) }
         try context.save()
@@ -118,31 +165,6 @@ final class LocalParmaRepository: ParmaRepositoryProtocol {
         for venue in venues { context.delete(venue) }
         try context.save()
         try photoStore.removeAll()
-    }
-}
-
-@MainActor
-enum EntryRepository {
-    private static let local = LocalParmaRepository()
-
-    static func findExisting(for venue: VenueCandidate, in entries: [ParmaEntry]) -> ParmaEntry? {
-        local.findExisting(for: venue, in: entries)
-    }
-
-    static func create(venue: VenueCandidate, rating: RatingSnapshot, notes: AttributedString, photoFilename: String?, in context: ModelContext) throws -> ParmaEntry {
-        try local.create(venue: venue, rating: rating, notes: notes, photoFilename: photoFilename, in: context)
-    }
-
-    static func update(_ entry: ParmaEntry, venue: VenueCandidate, rating: RatingSnapshot, notes: AttributedString, photoFilename: String?, deliberateRerating: Bool, in context: ModelContext) throws {
-        try local.update(entry, venue: venue, rating: rating, notes: notes, photoFilename: photoFilename, deliberateRerating: deliberateRerating, in: context)
-    }
-
-    static func delete(_ entry: ParmaEntry, photoStore: PhotoStore, in context: ModelContext) throws {
-        try local.delete(entry, photoStore: photoStore, in: context)
-    }
-
-    static func reset(photoStore: PhotoStore, in context: ModelContext) throws {
-        try local.reset(photoStore: photoStore, in: context)
     }
 }
 

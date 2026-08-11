@@ -1,13 +1,14 @@
-# Parma Master 1.3
+# Parma Master 1.3.1
 
 A local-first iPhone app for rating, remembering, and discovering great parmas.
 
 Parma Master helps you keep a personal log of venues, rate each parma by its components, add notes and photos, and find places worth returning to. It is built natively for iPhone with SwiftUI and Apple frameworks.
 
-V1.3 Home Refresh adds Home stats, area tracking, and configurable re-run
-suggestions on top of the Insights map and analytics introduced in V1.2. The
-app introduces no server, login, analytics, ads, CloudKit, or third-party
-runtime dependency.
+V1.3.1 Performance & Battery dramatically cuts background battery use and
+keeps the app fast on large logs, building on the V1.3 Home Refresh (Home
+stats, area tracking, and configurable re-run suggestions) and the Insights
+map and analytics introduced in V1.2. The app introduces no server, login,
+analytics, ads, CloudKit, or third-party runtime dependency.
 
 ## What you can do
 
@@ -38,6 +39,31 @@ runtime dependency.
 - **Insights “At a glance”** rebalanced to six cards, including Areas visited
   and Parmas logged this year, with ratings submitted as subtext under Parmas
   logged.
+
+## V1.3.1 Performance & Battery
+
+- **Dramatically lower background battery use.** Nearby-venue reminders now use
+  Apple’s low-power visit detection plus geofences around your most recently
+  logged venues instead of continuous background location tracking, so the app
+  fully sleeps between visits. Detection while the app is open is unchanged.
+- **“Back at…?” reminders at venues you have logged before**, detected by
+  geofence with no network use at all.
+- **Smarter new-venue detection.** Settling somewhere new triggers a single
+  throttled venue search instead of repeated searching while you stay put, and
+  each venue reminds you at most once every 24 hours.
+- **Honest location permissions.** The Always-access descriptions in Settings
+  and the iOS prompt now describe exactly what the app does, and onboarding
+  only records your choice after iOS actually grants it.
+- **Faster on big logs.** Ratings are decoded once and cached, venue lookups
+  are indexed, search is debounced, and photos load from cached thumbnails, so
+  lists, search, and the Insights map stay smooth at hundreds of entries.
+- **Safer automatic backups.** Backups now run off the main thread in a
+  background task, are written with data protection, and failures are reported
+  instead of silently ignored.
+- **No more crash on a broken database.** If the local database cannot open, a
+  recovery screen offers retry or reset instead of a crash loop.
+- **Detection diagnostics** — today’s location updates, venue searches, and
+  saved-venue arrivals are shown in Settings > Behaviour.
 
 ## Insights
 
@@ -99,24 +125,27 @@ On a physical iPhone, Xcode may ask you to enable Developer Mode or trust the de
 - `Sources/Features/Details`: scores, components, photos, notes, history, editing, deletion, and per-venue re-run opt-out
 - `Sources/Features/Insights`: the native map, statistic cards, venue insight cards, the areas list, empty states, and existing-details routing
 - `Sources/Features/Settings`: appearance, scoring, behaviour, Home re-run suggestion preferences, permissions, backups, and reset controls
-- `Sources/Shared`: brand styling, DM Serif typography, score displays, cards, empty states, and reusable UI components
-- `Tests` and `UITests`: model, repository, backup, rating, migration, re-run suggestion, Insights-calculator, and primary navigation coverage
+- `Sources/Shared`: brand styling, DM Serif typography, score displays, cards, empty states, reusable UI components, and shared utilities (logging and tuning constants)
+- `Tests` and `UITests`: model, repository, backup and backup-roundtrip, rating, migration, pub-detection state-machine, re-run suggestion, Insights-calculator, and primary navigation coverage
 
 The data model keeps each venue as a canonical entry and stores rating revisions as immutable snapshots. This means changing the scoring configuration does not rewrite historical ratings.
 
 ## Verification
 
-The current V1.3 branch builds against the iOS 26 deployment target and passes
-the full iOS Simulator suite, including V1→V3 migration, backup compatibility,
-re-run suggestion policy, Insights normalisation, tie handling, perfect-score
-detection, component averages, areas aggregation, zero-entry behavior, and the
-Insights tab empty-state UI flow.
+The current V1.3.1 branch builds against the iOS 26 deployment target and
+passes the full iOS Simulator suite, including the new pub-detection
+state-machine coverage (dwell, throttle, departure, cooldowns, and geofence
+arrivals) and the new backup-roundtrip coverage (backup, wipe, and restore
+including photos), alongside V1→V3 migration, backup compatibility, re-run
+suggestion policy, Insights normalisation, tie handling, perfect-score
+detection, component averages, areas aggregation, zero-entry behaviour, and
+the Insights tab empty-state UI flow.
 
 ## Permissions
 
 Parma Master asks only when a feature needs access:
 
-- Location access for current-location venue search and optional nearby reminders
+- Location access for current-location venue search; optional nearby reminders use low-power visit detection and geofences around your logged venues
 - Notifications for optional local reminders
 - Camera and photo library for adding venue photos
 - Files access when you explicitly choose a backup folder

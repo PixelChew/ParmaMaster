@@ -3,9 +3,17 @@ import Observation
 import UserNotifications
 import UIKit
 
+/// Abstraction over visit-reminder delivery so the detection pipeline can be
+/// unit tested without UserNotifications (audit findings A-04, T-01).
+@MainActor
+protocol VisitNotifying: AnyObject {
+    var authorizationStatus: UNAuthorizationStatus { get }
+    func scheduleVisitReminder(venue: VenueCandidate, existingEntry: ParmaEntry?) async throws
+}
+
 @MainActor
 @Observable
-final class NotificationService {
+final class NotificationService: VisitNotifying {
     private let center = UNUserNotificationCenter.current()
     var authorizationStatus: UNAuthorizationStatus = .notDetermined
 
@@ -47,6 +55,20 @@ extension Notification.Name {
 }
 
 final class AppDelegate: NSObject, UIApplicationDelegate, @preconcurrency UNUserNotificationCenterDelegate {
+    /// Deep-link payload from a notification tapped before RootView's
+    /// NotificationCenter subscription exists (cold start). RootView consumes
+    /// it in its startup task; warm taps are handled via the posted
+    /// notification and the stash is discarded.
+    private static let pendingDeepLink = LockIsolated<[AnyHashable: Any]?>(nil)
+
+    static func consumePendingDeepLink() -> [AnyHashable: Any]? {
+        pendingDeepLink.withLock { value in
+            let pending = value
+            value = nil
+            return pending
+        }
+    }
+
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
@@ -68,10 +90,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate, @preconcurrency UNUser
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
+        let userInfo = response.notification.request.content.userInfo
+        Self.pendingDeepLink.withLock { $0 = userInfo }
         NotificationCenter.default.post(
             name: .parmaNotificationDeepLink,
             object: nil,
-            userInfo: response.notification.request.content.userInfo
+            userInfo: userInfo
         )
         completionHandler()
     }

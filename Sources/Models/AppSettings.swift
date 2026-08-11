@@ -22,7 +22,7 @@ enum AppTheme: String, Codable, CaseIterable, Identifiable, Sendable {
 struct AppSettingsSnapshot: Codable, Hashable, Sendable {
     var hasCompletedOnboarding = false
     var theme = AppTheme.system
-    var accentHex = "#FF6A00"
+    var accentHex = BrandStyle.defaultAccentHex
     var ratingConfiguration = RatingConfiguration.default
     var photoFeatureEnabled = true
     var locationUseEnabled = false
@@ -49,7 +49,7 @@ struct AppSettingsSnapshot: Codable, Hashable, Sendable {
     init(
         hasCompletedOnboarding: Bool = false,
         theme: AppTheme = .system,
-        accentHex: String = "#FF6A00",
+        accentHex: String = BrandStyle.defaultAccentHex,
         ratingConfiguration: RatingConfiguration = .default,
         photoFeatureEnabled: Bool = true,
         locationUseEnabled: Bool = false,
@@ -76,7 +76,7 @@ struct AppSettingsSnapshot: Codable, Hashable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         hasCompletedOnboarding = try container.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? false
         theme = try container.decodeIfPresent(AppTheme.self, forKey: .theme) ?? .system
-        accentHex = try container.decodeIfPresent(String.self, forKey: .accentHex) ?? "#FF6A00"
+        accentHex = try container.decodeIfPresent(String.self, forKey: .accentHex) ?? BrandStyle.defaultAccentHex
         ratingConfiguration = try container.decodeIfPresent(RatingConfiguration.self, forKey: .ratingConfiguration) ?? .default
         photoFeatureEnabled = try container.decodeIfPresent(Bool.self, forKey: .photoFeatureEnabled) ?? true
         locationUseEnabled = try container.decodeIfPresent(Bool.self, forKey: .locationUseEnabled) ?? false
@@ -108,6 +108,7 @@ final class AppSettings {
 
     @ObservationIgnored var changeHandler: (() -> Void)?
     @ObservationIgnored private var isLoading = true
+    @ObservationIgnored private var persistTask: Task<Void, Never>?
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -162,7 +163,10 @@ final class AppSettings {
         rerunStaleMonths = snapshot.rerunStaleMonths
         rerunHideMonths = snapshot.rerunHideMonths
         isLoading = false
-        persist()
+        // Restores/resets must never be lost to the debounce window.
+        persistTask?.cancel()
+        persistTask = nil
+        persistNow()
     }
 
     func reset() {
@@ -170,31 +174,33 @@ final class AppSettings {
         apply(AppSettingsSnapshot())
     }
 
+    /// Writes any pending change immediately. RootView calls this when the app
+    /// backgrounds so a mid-debounce change is not lost to suspension.
+    func flushPendingPersist() {
+        guard persistTask != nil else { return }
+        persistTask?.cancel()
+        persistTask = nil
+        persistNow()
+    }
+
+    /// Coalesces the encode + UserDefaults write so rapid-fire changes (e.g. a
+    /// ColorPicker drag) cause one write instead of a storm (audit P-09).
     private func persist() {
         guard !isLoading else { return }
+        persistTask?.cancel()
+        persistTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled, let self else { return }
+            self.persistTask = nil
+            self.persistNow()
+        }
+    }
+
+    private func persistNow() {
         if let data = try? JSONEncoder().encode(snapshot) {
             defaults.set(data, forKey: Self.storageKey)
         }
         changeHandler?()
-    }
-}
-
-@MainActor
-@Observable
-final class CurrentUserProfile {
-    private static let displayNameKey = "ParmaMaster.CurrentUser.DisplayName"
-    private let defaults: UserDefaults
-
-    var displayName: String {
-        didSet {
-            let cleaned = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-            defaults.set(cleaned.isEmpty ? "Hamish" : cleaned, forKey: Self.displayNameKey)
-        }
-    }
-
-    init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
-        displayName = defaults.string(forKey: Self.displayNameKey) ?? "Hamish"
     }
 }
 

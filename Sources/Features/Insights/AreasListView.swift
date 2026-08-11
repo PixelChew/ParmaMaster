@@ -20,6 +20,7 @@ enum AreaSortField: String, CaseIterable, Identifiable {
 enum AreaAggregator {
     static func areas(from entries: [ParmaEntry]) -> [AreaSummary] {
         struct Bucket {
+            var displayName: String
             var venueIDs: Set<UUID> = []
             var logCount = 0
             var mostRecentLog = Date.distantPast
@@ -27,11 +28,10 @@ enum AreaAggregator {
 
         var buckets: [String: Bucket] = [:]
         for entry in entries {
-            guard let locality = entry.venue?.locality?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !locality.isEmpty
-            else { continue }
+            guard let locality = AreaNameResolver.cleaned(entry.venue?.locality) else { continue }
+            let key = AreaNameResolver.normalisedKey(locality)
 
-            var bucket = buckets[locality] ?? Bucket()
+            var bucket = buckets[key] ?? Bucket(displayName: locality)
             if let venueID = entry.venue?.id {
                 bucket.venueIDs.insert(venueID)
             }
@@ -39,12 +39,12 @@ enum AreaAggregator {
             if entry.currentRatingDate > bucket.mostRecentLog {
                 bucket.mostRecentLog = entry.currentRatingDate
             }
-            buckets[locality] = bucket
+            buckets[key] = bucket
         }
 
-        return buckets.map { name, bucket in
+        return buckets.map { _, bucket in
             AreaSummary(
-                name: name,
+                name: bucket.displayName,
                 venueCount: bucket.venueIDs.count,
                 logCount: bucket.logCount,
                 mostRecentLog: bucket.mostRecentLog
@@ -116,21 +116,10 @@ struct AreasListView: View {
     @State private var sortDirection = SortDirection.ascending
     @State private var selectedArea: AreaSummary?
 
-    private var allAreas: [AreaSummary] {
-        AreaAggregator.areas(from: entries)
-    }
-
-    private var filteredAreas: [AreaSummary] {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let matches = trimmed.isEmpty
-            ? allAreas
-            : allAreas.filter {
-                $0.name.range(of: trimmed, options: [.caseInsensitive, .diacriticInsensitive]) != nil
-            }
-        return AreaAggregator.sorted(matches, by: sortField, direction: sortDirection)
-    }
-
     var body: some View {
+        // Aggregated once per render; the empty check and search filter share it (audit per-surface note).
+        let allAreas = AreaAggregator.areas(from: entries)
+        let filteredAreas = filtered(allAreas)
         NavigationStack {
             Group {
                 if allAreas.isEmpty {
@@ -198,6 +187,16 @@ struct AreasListView: View {
         }
     }
 
+    private func filtered(_ areas: [AreaSummary]) -> [AreaSummary] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let matches = trimmed.isEmpty
+            ? areas
+            : areas.filter {
+                $0.name.range(of: trimmed, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+            }
+        return AreaAggregator.sorted(matches, by: sortField, direction: sortDirection)
+    }
+
     private func subtitle(for area: AreaSummary) -> String {
         let venues = area.venueCount == 1 ? "1 venue" : "\(area.venueCount) venues"
         let logs = area.logCount == 1 ? "1 log" : "\(area.logCount) logs"
@@ -212,15 +211,14 @@ private struct AreaEntriesView: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var entries: [ParmaEntry]
 
-    private var areaEntries: [ParmaEntry] {
-        entries
+    var body: some View {
+        // Filtered and sorted once per render (audit per-surface note).
+        let areaEntries = entries
             .filter { entry in
-                entry.venue?.locality?.trimmingCharacters(in: .whitespacesAndNewlines) == areaName
+                guard let locality = AreaNameResolver.cleaned(entry.venue?.locality) else { return false }
+                return AreaNameResolver.normalisedKey(locality) == AreaNameResolver.normalisedKey(areaName)
             }
             .sorted { $0.currentRatingDate > $1.currentRatingDate }
-    }
-
-    var body: some View {
         NavigationStack {
             Group {
                 if areaEntries.isEmpty {

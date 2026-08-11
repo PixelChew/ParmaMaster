@@ -6,6 +6,7 @@ struct BehaviourSettingsView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(LocationService.self) private var locationService
     @Environment(NotificationService.self) private var notificationService
+    @Environment(PubDetectionService.self) private var pubDetection
     @State private var showAlwaysExplanation = false
 
     var body: some View {
@@ -17,12 +18,12 @@ struct BehaviourSettingsView: View {
                     set: { enabled in
                         settings.locationUseEnabled = enabled
                         if enabled {
-                            locationService.requestWhenInUse()
-                            locationService.startForegroundUpdates()
+                            locationService.requestAlwaysAuthorization()
                         } else {
                             settings.locationRemindersEnabled = false
-                            locationService.stopUpdates()
                         }
+                        // RootView reapplies the location plan on these
+                        // settings changes; no direct start/stop needed here.
                     }
                 ))
 
@@ -38,13 +39,25 @@ struct BehaviourSettingsView: View {
                     ))
                 }
 
-                if locationService.authorizationStatus == .denied || locationService.authorizationStatus == .restricted {
+                if settings.locationRemindersEnabled,
+                   locationService.authorizationStatus != .authorizedAlways {
+                    Label(
+                        "Choose “Always” in iOS Settings for reminders to work in the background.",
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+                }
+
+                if locationService.authorizationStatus == .denied
+                    || locationService.authorizationStatus == .restricted
+                    || (settings.locationRemindersEnabled && locationService.authorizationStatus != .authorizedAlways) {
                     Button("Open iOS Settings", systemImage: "gear") { openSystemSettings() }
                 }
             } header: {
                 Text("Location")
             } footer: {
-                Text("Foreground checks still work with When In Use permission. Automatic background detection is best effort and requires Always permission and Location Updates background mode.")
+                Text("Parma Master uses your location to find pubs and send a friendly reminder when you visit somewhere worth logging. Choose “Always” so reminders still work when the app is closed.\n\n\(pubDetection.diagnosticsSummary)")
             }
 
             Section("Notifications") {
@@ -93,7 +106,7 @@ struct BehaviourSettingsView: View {
             Button("Continue") { enableReminders() }
             Button("Not Now", role: .cancel) { settings.locationRemindersEnabled = false }
         } message: {
-            Text("Parma Master needs Always location access to attempt low-power pub detection after you leave the app. It searches only after a likely dwell and sends local notifications; detection is not guaranteed.")
+            Text("Parma Master can nudge you to log a parma when you arrive at a pub. Choose “Always” when iOS asks so reminders work even when the app is closed.")
         }
     }
 
@@ -121,12 +134,12 @@ struct BehaviourSettingsView: View {
 
     private func enableReminders() {
         Task {
-            locationService.requestAlwaysAndStartBackgroundUpdates()
+            locationService.requestAlwaysAuthorization()
             let allowed = await notificationService.requestAuthorization()
             settings.locationRemindersEnabled = allowed
-            if !allowed {
-                locationService.startForegroundUpdates()
-            }
+            // RootView reapplies the location plan when the setting or the
+            // authorization status changes, arming visit monitoring and
+            // geofences only once Always is actually granted.
         }
     }
 
