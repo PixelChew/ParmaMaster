@@ -27,7 +27,7 @@ targets:
       properties:
         CFBundleDisplayName: Parma Master
         CFBundleName: Parma Master
-        CFBundleShortVersionString: "1.0"
+        CFBundleShortVersionString: "1.2"
         CFBundleVersion: "1"
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:

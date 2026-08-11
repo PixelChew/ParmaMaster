@@ -41,6 +41,9 @@
 		CC32EC031D835DD06586D549 /* DMSerifDisplay-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B80FC074FEC18457630BAC34 /* DMSerifDisplay-Regular.ttf */; };
 		D39BE49236572F3529F2EDCB /* SortMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07A9B76195888B938BE706A3 /* SortMenu.swift */; };
 		D874D58DB473A4A99AD01964 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FCF0CE5871DB1822C10F000 /* HomeView.swift */; };
+		A11A00010000000000000001 /* InsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11A00020000000000000001 /* InsightsView.swift */; };
+		A11A00030000000000000001 /* ParmaInsightsCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11A00040000000000000001 /* ParmaInsightsCalculator.swift */; };
+		A11A00050000000000000001 /* ParmaInsightsCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11A00060000000000000001 /* ParmaInsightsCalculatorTests.swift */; };
 		DA6E17DF9269FA89239AC837 /* PhotoStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5746FEB1E1083A180C7037BB /* PhotoStore.swift */; };
 		DFFCE2D0DFD8C6365C8C5BD6 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 496529C70AF75EFB4E0474A0 /* EmptyStateView.swift */; };
 		E47EFB882FD04F80935D8DDA /* LoggerSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3B72911C0E6A48CE60EE9CA /* LoggerSettingsView.swift */; };
@@ -102,6 +105,9 @@
 		9EBDE88F5834503B9AB59690 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		9EC4BBA08AF920DCCA2AE559 /* ScoreDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreDisplay.swift; sourceTree = "<group>"; };
 		9FCF0CE5871DB1822C10F000 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		A11A00020000000000000001 /* InsightsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsView.swift; sourceTree = "<group>"; };
+		A11A00040000000000000001 /* ParmaInsightsCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParmaInsightsCalculator.swift; sourceTree = "<group>"; };
+		A11A00060000000000000001 /* ParmaInsightsCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParmaInsightsCalculatorTests.swift; sourceTree = "<group>"; };
 		A6AFB4FCE53343C9E9452AF0 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		AD0780C85DA71A117F6D7CBA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		ADF1829E602E040FFA4A853D /* MapSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapSearchService.swift; sourceTree = "<group>"; };
@@ -122,6 +128,7 @@
 			children = (
 				5790A89CF92656FA452F2AE9 /* Details */,
 				3F53290F33248B23A5D359F0 /* Home */,
+				A11A00070000000000000001 /* Insights */,
 				BAF7C76B71AB30A573F14DDA /* Logger */,
 				7C7E30089DF99FBF4D0AE91A /* Onboarding */,
 				3047EE90433534B14810068F /* ParmaLog */,
@@ -141,6 +148,7 @@
 				FFE7120B7CA31F923BE8B68C /* NotificationService.swift */,
 				5746FEB1E1083A180C7037BB /* PhotoStore.swift */,
 				88283B675B673675612C07FB /* PubDetectionService.swift */,
+				A11A00040000000000000001 /* ParmaInsightsCalculator.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -264,6 +272,7 @@
 			isa = PBXGroup;
 			children = (
 				DC3EA81496444F192A65018D /* ParmaMasterTests.swift */,
+				A11A00060000000000000001 /* ParmaInsightsCalculatorTests.swift */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -278,6 +287,14 @@
 				9EBDE88F5834503B9AB59690 /* SettingsView.swift */,
 			);
 			path = Settings;
+			sourceTree = "<group>";
+		};
+		A11A00070000000000000001 /* Insights */ = {
+			isa = PBXGroup;
+			children = (
+				A11A00020000000000000001 /* InsightsView.swift */,
+			);
+			path = Insights;
 			sourceTree = "<group>";
 		};
 		B2D6E0A08A97B7EA886EEC04 /* Fonts */ = {
@@ -472,6 +489,7 @@
 				3048E630B187173DA350D215 /* EntryCard.swift in Sources */,
 				ED8EBF051832CAC2267FBA89 /* EntryRepository.swift in Sources */,
 				D874D58DB473A4A99AD01964 /* HomeView.swift in Sources */,
+				A11A00010000000000000001 /* InsightsView.swift in Sources */,
 				F65066F55302A368C0D9898B /* LocationPickerView.swift in Sources */,
 				FE49D193ACBCB5279FC62F56 /* LocationService.swift in Sources */,
 				E47EFB882FD04F80935D8DDA /* LoggerSettingsView.swift in Sources */,
@@ -482,6 +500,7 @@
 				B8F342CE3D48AC1F2A8AE08D /* ParmaDetailsView.swift in Sources */,
 				881FD69523D2456C206DF789 /* ParmaEntry.swift in Sources */,
 				EA57807209718DE7606819FC /* ParmaLogView.swift in Sources */,
+				A11A00030000000000000001 /* ParmaInsightsCalculator.swift in Sources */,
 				9BDD68AD1D280766941E604B /* ParmaMasterApp.swift in Sources */,
 				DA6E17DF9269FA89239AC837 /* PhotoStore.swift in Sources */,
 				267FC2D1F3FC824223CEA3D3 /* PubDetectionService.swift in Sources */,
@@ -501,6 +520,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3BA839AE9729475A4520927C /* ParmaMasterTests.swift in Sources */,
+				A11A00050000000000000001 /* ParmaInsightsCalculatorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

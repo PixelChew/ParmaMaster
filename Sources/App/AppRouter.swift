@@ -4,6 +4,7 @@ import Observation
 enum AppTab: Hashable {
     case home
     case log
+    case insights
     case settings
     case search
 }
