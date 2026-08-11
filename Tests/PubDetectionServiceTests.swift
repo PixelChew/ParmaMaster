@@ -116,6 +116,22 @@ final class PubDetectionServiceTests: XCTestCase {
 
     // MARK: - Departure
 
+    func testPendingDwellCancelsWhenUserLeavesVenueAreaBeforeActivation() async throws {
+        let harness = try makeHarness()
+        defer { harness.cleanUp() }
+        harness.mapSearch.results = [pubCandidate(named: "Pass By Hotel")]
+
+        await harness.service.process(location: harness.userLocation(), foregroundCheck: true)
+        XCTAssertNil(harness.service.currentCandidate)
+        XCTAssertEqual(harness.notifier.scheduled.count, 1)
+
+        harness.clock.advance(by: 60)
+        await harness.service.process(location: harness.userLocation(latitudeOffset: 0.0018))
+
+        XCTAssertNil(harness.service.currentCandidate)
+        XCTAssertEqual(harness.notifier.cancelledVenueIDs.count, 1)
+    }
+
     func testSustainedDepartureClearsTheVisitSession() async throws {
         let harness = try makeHarness()
         defer { harness.cleanUp() }
@@ -235,6 +251,49 @@ final class PubDetectionServiceTests: XCTestCase {
 
         harness.service.processKnownVenueExit(venueID: venueID)
         XCTAssertEqual(harness.notifier.cancelledVenueIDs, [scheduledVenueID])
+    }
+
+    func testKnownVenueRerunOptOutSuppressesLocationSuggestion() async throws {
+        let harness = try makeHarness()
+        defer { harness.cleanUp() }
+        let candidate = pubCandidate(named: "Opt Out Hotel", identifier: "map-opt-out-known")
+        let entry = try harness.repository.create(
+            venue: candidate,
+            rating: makeRating(parma: 4, chips: 2, salad: 2),
+            notes: AttributedString(),
+            photoFilename: nil,
+            in: harness.context
+        )
+        let venue = try XCTUnwrap(entry.venue)
+        venue.excludedFromRerun = true
+        try harness.context.save()
+
+        await harness.service.processKnownVenueArrival(venueID: venue.id)
+
+        XCTAssertNil(harness.service.currentCandidate)
+        XCTAssertTrue(harness.notifier.scheduled.isEmpty)
+    }
+
+    func testNearbyExistingVenueRerunOptOutSuppressesLocationSuggestion() async throws {
+        let harness = try makeHarness()
+        defer { harness.cleanUp() }
+        let candidate = pubCandidate(named: "Nearby Opt Out", identifier: "map-opt-out-nearby")
+        let entry = try harness.repository.create(
+            venue: candidate,
+            rating: makeRating(parma: 4, chips: 2, salad: 2),
+            notes: AttributedString(),
+            photoFilename: nil,
+            in: harness.context
+        )
+        let venue = try XCTUnwrap(entry.venue)
+        venue.excludedFromRerun = true
+        try harness.context.save()
+        harness.mapSearch.results = [candidate]
+
+        await harness.service.process(location: harness.userLocation(), foregroundCheck: true)
+
+        XCTAssertNil(harness.service.currentCandidate)
+        XCTAssertTrue(harness.notifier.scheduled.isEmpty)
     }
 
     // MARK: - Skipping
