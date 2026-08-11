@@ -171,7 +171,8 @@ final class PubDetectionService {
     // MARK: - Background events
 
     /// System visit events (arrival/departure). The OS has already established
-    /// the dwell, so no timer gating applies beyond the search throttle.
+    /// enough dwell to classify the visit, but the configurable suggestion
+    /// dwell still applies before a card or reminder becomes eligible.
     func processVisit(coordinate: CLLocationCoordinate2D, isArrival: Bool) async {
         guard let settings, settings.locationUseEnabled, settings.locationRemindersEnabled else { return }
         discardExpiredSession()
@@ -215,6 +216,12 @@ final class PubDetectionService {
             longitude: venue.longitude,
             locality: venue.locality
         )
+        if venue.excludedFromRerun {
+            if visitSession?.candidate.id == candidate.id {
+                clearVisitState()
+            }
+            return
+        }
         establishVisit(for: candidate)
         guard visitSession?.skipped != true else { return }
         let existingEntry = venue.entries.max { $0.lastModifiedAt < $1.lastModifiedAt }
@@ -271,6 +278,10 @@ final class PubDetectionService {
             establishVisit(for: first)
             guard visitSession?.skipped != true else { return }
             let existingEntry = existingEntry(for: first)
+            if existingEntry?.venue?.excludedFromRerun == true {
+                clearVisitState()
+                return
+            }
             await activateVisitIfEligible(candidate: first, existingEntry: existingEntry)
         } catch {
             AppLog.detection.error("Nearby venue lookup failed: \(error.localizedDescription)")
@@ -291,6 +302,10 @@ final class PubDetectionService {
 
     private func activateVisitIfEligible(candidate: VenueCandidate, existingEntry: ParmaEntry?) async {
         guard let session = visitSession, session.candidate.id == candidate.id, !session.skipped else { return }
+        if existingEntry?.venue?.excludedFromRerun == true {
+            clearVisitState()
+            return
+        }
         let dwellRemaining = locationSuggestionDwellDuration - now().timeIntervalSince(session.firstSeenAt)
         guard dwellRemaining <= 0 else {
             currentCandidate = nil
@@ -304,6 +319,10 @@ final class PubDetectionService {
     private func notifyFromSessionIfEligible() async {
         guard let session = visitSession, !session.skipped else { return }
         let existingEntry = existingEntry(for: session.candidate)
+        if existingEntry?.venue?.excludedFromRerun == true {
+            clearVisitState()
+            return
+        }
         await activateVisitIfEligible(candidate: session.candidate, existingEntry: existingEntry)
     }
 
@@ -371,8 +390,12 @@ final class PubDetectionService {
 
     private func restoreCandidateFromSession() {
         discardExpiredSession()
-        guard let session = visitSession, !session.skipped, currentCandidate == nil,
-              now().timeIntervalSince(session.firstSeenAt) >= locationSuggestionDwellDuration else { return }
+        guard let session = visitSession, !session.skipped, currentCandidate == nil else { return }
+        if existingEntry(for: session.candidate)?.venue?.excludedFromRerun == true {
+            clearVisitState()
+            return
+        }
+        guard now().timeIntervalSince(session.firstSeenAt) >= locationSuggestionDwellDuration else { return }
         currentCandidate = session.candidate
     }
 
@@ -384,7 +407,22 @@ final class PubDetectionService {
 
     private func updateDepartureState(_ location: CLLocation) {
         guard var session = visitSession else { return }
-        if location.distance(from: session.venueLocation) > DetectionTuning.departureDistance {
+        let distance = location.distance(from: session.venueLocation)
+
+        // Before a suggestion is eligible, presence must be continuous inside
+        // the venue-area radius. The broader 250 m / 5 min departure hysteresis
+        // is intentionally retained only after dwell completion so a user who
+        // briefly passes a venue cannot leave a delayed reminder armed.
+        if now().timeIntervalSince(session.firstSeenAt) < locationSuggestionDwellDuration {
+            let accuracyAllowance = max(location.horizontalAccuracy, 0)
+            let confidentlyOutsideDistance = max(0, distance - accuracyAllowance)
+            if confidentlyOutsideDistance > LocationTuning.knownVenueGeofenceRadius {
+                clearVisitState()
+                return
+            }
+        }
+
+        if distance > DetectionTuning.departureDistance {
             session.outsideSince = session.outsideSince ?? now()
             if let outsideSince = session.outsideSince,
                now().timeIntervalSince(outsideSince) >= DetectionTuning.departureDuration {
