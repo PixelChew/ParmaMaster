@@ -377,13 +377,7 @@ final class ParmaMasterTests: XCTestCase {
         XCTAssertEqual(profile.displayName, "Hamish")
         profile.displayName = "Test User"
         XCTAssertEqual(CurrentUserProfile(defaults: defaults).displayName, "Test User")
-        XCTAssertTrue(
-            HomeGreeting.candidates(
-                at: greetingDate(hour: 9),
-                calendar: greetingCalendar,
-                displayName: profile.displayName
-            ).contains("Welcome back, Test User.")
-        )
+        XCTAssertTrue(HomeGreeting.candidates(at: greetingDate(hour: 9), calendar: greetingCalendar).contains("Welcome back."))
     }
 
     func testHomeGreetingSessionKeepsOneGreetingForItsLifetime() {

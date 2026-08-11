@@ -26,7 +26,7 @@ struct ParmaMasterApp: App {
         let notificationService = NotificationService()
         let currentUser = CurrentUserProfile()
         _settings = State(initialValue: AppSettings())
-        _homeGreetingSession = State(initialValue: HomeGreetingSession(displayName: currentUser.displayName))
+        _homeGreetingSession = State(initialValue: HomeGreetingSession())
         _currentUser = State(initialValue: currentUser)
         _repository = State(initialValue: LocalParmaRepository())
         _router = State(initialValue: AppRouter())

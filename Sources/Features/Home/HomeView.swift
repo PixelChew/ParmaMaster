@@ -179,27 +179,26 @@ private enum WindowSceneMetrics {
 final class HomeGreetingSession {
     let message: String
 
-    init(displayName: String = "Hamish") {
-        message = HomeGreeting.message(displayName: displayName)
+    init() {
+        message = HomeGreeting.message()
     }
 }
 
 enum HomeGreeting {
     static func message(
-        displayName: String = "Hamish",
         at date: Date = .now,
         calendar: Calendar = .current
     ) -> String {
-        candidates(at: date, calendar: calendar, displayName: displayName).randomElement()!
+        candidates(at: date, calendar: calendar).randomElement()!
     }
 
-    static func candidates(at date: Date, calendar: Calendar, displayName: String = "Hamish") -> [String] {
+    static func candidates(at date: Date, calendar: Calendar) -> [String] {
         let hour = calendar.component(.hour, from: date)
         let day = calendar.weekdaySymbols[calendar.component(.weekday, from: date) - 1]
 
         var greetings = [
             "It's always a good time for a parma.",
-            "Welcome back, \(displayName).",
+            "Welcome back.",
             "Time for a parma?",
             "Parma or parmi?",
             "How do you say it?",
