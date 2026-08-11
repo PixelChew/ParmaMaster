@@ -360,6 +360,16 @@ final class PubDetectionService {
               notifier.authorizationStatus == .authorized
         else { return }
 
+        // A delayed notification is only safe when Always location access is
+        // available to back it with the temporary exit geofence. With
+        // When-In-Use access, the foreground card can still appear after dwell
+        // but no unverified background timer is left armed.
+        if delay > 0,
+           let locationService,
+           locationService.authorizationStatus != .authorizedAlways {
+            return
+        }
+
         // Per-venue cooldown so a brief walk away and back does not re-ping
         // (audit finding B-08).
         if let lastNotified = notificationLog[venue.id],
