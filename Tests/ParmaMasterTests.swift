@@ -6,6 +6,27 @@ import XCTest
 
 @MainActor
 final class ParmaMasterTests: XCTestCase {
+    func testHomeGreetingCandidatesRespectTimeOfDay() {
+        let morning = HomeGreeting.candidates(at: greetingDate(hour: 9), calendar: greetingCalendar)
+        XCTAssertTrue(morning.contains("Good morning."))
+        XCTAssertFalse(morning.contains("Good afternoon."))
+        XCTAssertFalse(morning.contains("Good evening."))
+        XCTAssertFalse(morning.contains("Parma dinner?"))
+
+        let dinner = HomeGreeting.candidates(at: greetingDate(hour: 19), calendar: greetingCalendar)
+        XCTAssertTrue(dinner.contains("Good evening."))
+        XCTAssertTrue(dinner.contains("Parma dinner?"))
+        XCTAssertTrue(dinner.contains("Winner winna parma dinner"))
+
+        let lateNight = HomeGreeting.candidates(at: greetingDate(hour: 23), calendar: greetingCalendar)
+        XCTAssertTrue(lateNight.contains("Late night parma?"))
+        XCTAssertFalse(lateNight.contains("Up late?"))
+    }
+
+    func testHomeGreetingIncludesTheCurrentDayName() {
+        let candidates = HomeGreeting.candidates(at: greetingDate(hour: 13), calendar: greetingCalendar)
+        XCTAssertTrue(candidates.contains("Monday parma day."))
+    }
     func testDecimalRatingDerivesTotalAndMaximum() {
         let rating = makeRating(parma: Decimal(string: "4.5")!, chips: 2, salad: Decimal(string: "1.5")!)
         XCTAssertEqual(rating.total, 8)
@@ -204,6 +225,16 @@ final class ParmaMasterTests: XCTestCase {
         XCTAssertEqual(stored.size.width, 1_920, accuracy: 1)
         XCTAssertEqual(stored.size.height, 960, accuracy: 1)
         XCTAssertEqual(stored.size.width / stored.size.height, 2, accuracy: 0.001)
+    }
+
+    private var greetingCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }
+
+    private func greetingDate(hour: Int) -> Date {
+        greetingCalendar.date(from: DateComponents(year: 2026, month: 8, day: 10, hour: hour))!
     }
 
     private func makeContext() throws -> ModelContext {
