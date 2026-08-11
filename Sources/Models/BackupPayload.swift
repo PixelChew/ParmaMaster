@@ -32,6 +32,43 @@ struct VenueBackup: Codable, Sendable {
     let formattedAddress: String
     let latitude: Double
     let longitude: Double
+    let locality: String?
+    let excludedFromRerun: Bool
+
+    init(
+        id: UUID,
+        mapItemIdentifier: String?,
+        venueIdentity: String,
+        name: String,
+        formattedAddress: String,
+        latitude: Double,
+        longitude: Double,
+        locality: String? = nil,
+        excludedFromRerun: Bool = false
+    ) {
+        self.id = id
+        self.mapItemIdentifier = mapItemIdentifier
+        self.venueIdentity = venueIdentity
+        self.name = name
+        self.formattedAddress = formattedAddress
+        self.latitude = latitude
+        self.longitude = longitude
+        self.locality = locality
+        self.excludedFromRerun = excludedFromRerun
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        mapItemIdentifier = try container.decodeIfPresent(String.self, forKey: .mapItemIdentifier)
+        venueIdentity = try container.decode(String.self, forKey: .venueIdentity)
+        name = try container.decode(String.self, forKey: .name)
+        formattedAddress = try container.decode(String.self, forKey: .formattedAddress)
+        latitude = try container.decode(Double.self, forKey: .latitude)
+        longitude = try container.decode(Double.self, forKey: .longitude)
+        locality = try container.decodeIfPresent(String.self, forKey: .locality)
+        excludedFromRerun = try container.decodeIfPresent(Bool.self, forKey: .excludedFromRerun) ?? false
+    }
 }
 
 struct EntryBackup: Codable, Sendable {
@@ -79,7 +116,9 @@ struct LegacyBackupPayloadV1: Codable, Sendable {
                     name: entry.venueName,
                     formattedAddress: entry.formattedAddress,
                     latitude: entry.latitude,
-                    longitude: entry.longitude
+                    longitude: entry.longitude,
+                    locality: nil,
+                    excludedFromRerun: false
                 ))
             }
             upgradedEntries.append(EntryBackup(

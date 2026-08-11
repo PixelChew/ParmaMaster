@@ -1,9 +1,53 @@
-# Parma Master 1.0
+# Parma Master 1.3
 
 Parma Master is a native, local-first iPhone app built with SwiftUI, SwiftData,
 MapKit, Core Location, UserNotifications, PhotosUI, and UIKit camera/image
 bridges. It targets iOS 26 and has no server, login, analytics, advertising,
 CloudKit, or third-party runtime dependencies.
+
+V1.3 Home Refresh adds Home stats, area tracking, and configurable re-run
+suggestions on top of the Insights map and analytics introduced in V1.2.
+
+## V1.3 Home Refresh
+
+- **Home stats row** (shown when there are 2+ entries): Parmas logged and Areas
+  visited. Areas are unique MapKit localities (suburb/town); the Areas card
+  opens an Insights sheet listing each area with venue and log counts, search,
+  and sort.
+- **Re-run suggestion card** on Home for venues not logged for a configurable
+  number of months (default 5). Tap to rate again, or dismiss to hide the card
+  for a configurable window. The card yields to the location “Welcome to”
+  suggestion when that is active, and stays hidden when nothing is eligible.
+- **Per-venue opt-out** from Parma Details so a place can be excluded from
+  re-run suggestions permanently.
+- **Behaviour settings** for enabling suggestions, the stale-months threshold,
+  and how long dismissed (or re-logged) suggestions stay hidden.
+- **Insights “At a glance”** rebalanced to six cards, including Areas visited
+  and Parmas logged this year, with ratings submitted as subtext under Parmas
+  logged.
+
+## Insights
+
+The Insights tab sits between Parma Log and Settings in the native iOS 26 tab
+bar. It provides:
+
+- A selectable MapKit map with one marker per canonical Parma venue. Marker
+  scores are shown on a comparable normalised `/10` scale, and map framing
+  adapts to one or many saved locations.
+- An “At a glance” grid for Parmas logged (with ratings-submitted subtext),
+  average, highest, lowest, areas visited, and Parmas logged this year.
+  Cross-entry comparisons use `currentTotal / currentMaximum`, never raw totals
+  from different rating scales.
+- Highest/lowest venue cards, perfect-score venues, independently normalised
+  component averages, empty and low-data states, invalid-coordinate protection,
+  accessible marker labels, and actions that open the existing Parma Details
+  flow.
+
+Insights values are calculated in memory from current canonical `ParmaEntry`
+records. Historical `RatingRevision` snapshots contribute only to explicitly
+historical metrics such as ratings submitted; they do not create duplicate
+venues or map pins. Derived statistics are not persisted, so they stay correct
+after edits, rerates, deletions, restores, and rating-scale changes.
 
 ## Open and run on an iPhone
 
@@ -54,6 +98,9 @@ No paid-program entitlement is required.
   skip, and departure-rearm rules before suggesting a venue.
 - `AppSettings` persists appearance, rating, photo, location, reminder, and
   backup preferences locally.
+- `ParmaInsightsCalculator` is the UI-independent analytics layer. It derives
+  normalised overall and component averages, tie-preserving extremes, perfect
+  scores, rating-event totals, revisit counts, and calendar-year metrics.
 
 ## Major files and components
 
@@ -64,28 +111,34 @@ No paid-program entitlement is required.
   notifications, Core Location, and pub-detection policy.
 - `Sources/Features/Onboarding`: welcome and manual Location, Camera & Photos,
   and Notifications permission controls with live approved-state ticks.
-- `Sources/Features/Home`: recent entries and new/returning venue suggestions.
+- `Sources/Features/Home`: recent entries, stats row, re-run suggestions, and
+  new/returning venue suggestions.
 - `Sources/Features/Logger`: venue picker, decimal/category scoring, attributed
   notes, camera/PhotosPicker/Files images, duplicate handling, edits, and re-rates.
 - `Sources/Features/ParmaLog` and `Sources/Features/Search`: canonical-entry lists,
   normalised sorting, search across venue/address/note text, and delete flows.
 - `Sources/Features/Details`: current score, components, photo, notes, history,
   edit, re-rate, and confirmed deletion.
+- `Sources/Features/Insights`: the native map, statistic cards, venue insight
+  cards, empty states, and existing-details routing for selected venues.
 - `Sources/Features/Settings`: appearance, configurable scales/modes/categories,
-  photo/location/reminder behaviour, backup/restore, and factory reset.
+  photo/location/reminder behaviour, Home re-run suggestion preferences,
+  backup/restore, and factory reset.
 - `Sources/Shared`: semantic brand styling, DM Serif display typography, score,
   card, sorting, empty-state, and aspect-fill image components.
-- `Tests` and `UITests`: model/repository/image regressions and primary UI flow.
+- `Tests` and `UITests`: model/repository/image regressions, Insights calculator
+  cases, tab placement, empty state, and primary UI flow.
 
 ## Verification completed
 
 - Clean simulator build succeeds with Xcode 27.0 and an iOS 26 deployment target.
-- Twelve unit tests pass, including location-activity policy, over-maximum rating rejection, bounded input,
-  global Stars propagation, repository validation, historical snapshots, and
-  proportional photo resizing.
+- The full simulator suite passes, including location-activity policy,
+  migration and backup compatibility, rating validation, historical snapshots,
+  proportional photo resizing, Insights normalisation/tie/perfect-score cases,
+  component averages, and zero-entry behavior.
 - The UI test passes onboarding, verifies the three manual permission controls,
-  visits Home, Parma Log, Settings, Appearance, Behaviour, and Search, and proves
-  Settings returns to its root after changing tabs on iPhone 17 Pro.
+  visits Home, Parma Log, Insights, Settings, Appearance, Behaviour, and Search,
+  and proves Settings returns to its root after changing tabs on iPhone 17 Pro.
 - The custom DM Serif Display font and the Figma hero asset are present in the
   built app bundle and were visually checked in the simulator.
 

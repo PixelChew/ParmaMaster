@@ -28,6 +28,64 @@ struct AppSettingsSnapshot: Codable, Hashable, Sendable {
     var locationUseEnabled = false
     var locationRemindersEnabled = false
     var automaticBackupsEnabled = false
+    var rerunSuggestionsEnabled = true
+    var rerunStaleMonths = 5
+    var rerunHideMonths = 1
+
+    enum CodingKeys: String, CodingKey {
+        case hasCompletedOnboarding
+        case theme
+        case accentHex
+        case ratingConfiguration
+        case photoFeatureEnabled
+        case locationUseEnabled
+        case locationRemindersEnabled
+        case automaticBackupsEnabled
+        case rerunSuggestionsEnabled
+        case rerunStaleMonths
+        case rerunHideMonths
+    }
+
+    init(
+        hasCompletedOnboarding: Bool = false,
+        theme: AppTheme = .system,
+        accentHex: String = "#FF6A00",
+        ratingConfiguration: RatingConfiguration = .default,
+        photoFeatureEnabled: Bool = true,
+        locationUseEnabled: Bool = false,
+        locationRemindersEnabled: Bool = false,
+        automaticBackupsEnabled: Bool = false,
+        rerunSuggestionsEnabled: Bool = true,
+        rerunStaleMonths: Int = 5,
+        rerunHideMonths: Int = 1
+    ) {
+        self.hasCompletedOnboarding = hasCompletedOnboarding
+        self.theme = theme
+        self.accentHex = accentHex
+        self.ratingConfiguration = ratingConfiguration
+        self.photoFeatureEnabled = photoFeatureEnabled
+        self.locationUseEnabled = locationUseEnabled
+        self.locationRemindersEnabled = locationRemindersEnabled
+        self.automaticBackupsEnabled = automaticBackupsEnabled
+        self.rerunSuggestionsEnabled = rerunSuggestionsEnabled
+        self.rerunStaleMonths = rerunStaleMonths
+        self.rerunHideMonths = rerunHideMonths
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        hasCompletedOnboarding = try container.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? false
+        theme = try container.decodeIfPresent(AppTheme.self, forKey: .theme) ?? .system
+        accentHex = try container.decodeIfPresent(String.self, forKey: .accentHex) ?? "#FF6A00"
+        ratingConfiguration = try container.decodeIfPresent(RatingConfiguration.self, forKey: .ratingConfiguration) ?? .default
+        photoFeatureEnabled = try container.decodeIfPresent(Bool.self, forKey: .photoFeatureEnabled) ?? true
+        locationUseEnabled = try container.decodeIfPresent(Bool.self, forKey: .locationUseEnabled) ?? false
+        locationRemindersEnabled = try container.decodeIfPresent(Bool.self, forKey: .locationRemindersEnabled) ?? false
+        automaticBackupsEnabled = try container.decodeIfPresent(Bool.self, forKey: .automaticBackupsEnabled) ?? false
+        rerunSuggestionsEnabled = try container.decodeIfPresent(Bool.self, forKey: .rerunSuggestionsEnabled) ?? true
+        rerunStaleMonths = try container.decodeIfPresent(Int.self, forKey: .rerunStaleMonths) ?? 5
+        rerunHideMonths = try container.decodeIfPresent(Int.self, forKey: .rerunHideMonths) ?? 1
+    }
 }
 
 @MainActor
@@ -44,6 +102,9 @@ final class AppSettings {
     var locationUseEnabled: Bool { didSet { persist() } }
     var locationRemindersEnabled: Bool { didSet { persist() } }
     var automaticBackupsEnabled: Bool { didSet { persist() } }
+    var rerunSuggestionsEnabled: Bool { didSet { persist() } }
+    var rerunStaleMonths: Int { didSet { persist() } }
+    var rerunHideMonths: Int { didSet { persist() } }
 
     @ObservationIgnored var changeHandler: (() -> Void)?
     @ObservationIgnored private var isLoading = true
@@ -61,6 +122,9 @@ final class AppSettings {
         locationUseEnabled = stored.locationUseEnabled
         locationRemindersEnabled = stored.locationRemindersEnabled
         automaticBackupsEnabled = stored.automaticBackupsEnabled
+        rerunSuggestionsEnabled = stored.rerunSuggestionsEnabled
+        rerunStaleMonths = stored.rerunStaleMonths
+        rerunHideMonths = stored.rerunHideMonths
         isLoading = false
     }
 
@@ -77,7 +141,10 @@ final class AppSettings {
             photoFeatureEnabled: photoFeatureEnabled,
             locationUseEnabled: locationUseEnabled,
             locationRemindersEnabled: locationRemindersEnabled,
-            automaticBackupsEnabled: automaticBackupsEnabled
+            automaticBackupsEnabled: automaticBackupsEnabled,
+            rerunSuggestionsEnabled: rerunSuggestionsEnabled,
+            rerunStaleMonths: rerunStaleMonths,
+            rerunHideMonths: rerunHideMonths
         )
     }
 
@@ -91,6 +158,9 @@ final class AppSettings {
         locationUseEnabled = snapshot.locationUseEnabled
         locationRemindersEnabled = snapshot.locationUseEnabled && snapshot.locationRemindersEnabled
         automaticBackupsEnabled = snapshot.automaticBackupsEnabled
+        rerunSuggestionsEnabled = snapshot.rerunSuggestionsEnabled
+        rerunStaleMonths = snapshot.rerunStaleMonths
+        rerunHideMonths = snapshot.rerunHideMonths
         isLoading = false
         persist()
     }

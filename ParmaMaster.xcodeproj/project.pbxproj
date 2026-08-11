@@ -21,9 +21,12 @@
 		5A33701AC4C3247A1EC89687 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EBDE88F5834503B9AB59690 /* SettingsView.swift */; };
 		62D3986BDD26167C0A3272B4 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3721FF99CF8D272D171BE3F4 /* AppSettings.swift */; };
 		65F9D999D76780BEA41E495B /* CameraPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 735AA8140169FDDBDD44C9A7 /* CameraPicker.swift */; };
+		6630A9F7F3AC77D7C2C79CE4 /* RerunSuggestionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AE98BBED58C43A978AA107 /* RerunSuggestionService.swift */; };
 		669C6766820B7CCE80FFDCEB /* BackupPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E99DE46396072CA66E5E832 /* BackupPayload.swift */; };
+		68C994D8C7048944E904EA69 /* AreasListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A76430C7BF95D02C8E2EF73 /* AreasListView.swift */; };
 		69FE5F3F72EE7D19DEE9CCE4 /* SearchEntriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D764ECCB107B06C8A78C96AD /* SearchEntriesView.swift */; };
 		79128168EB24C4EF78B6ECCE /* BrandedHeading.swift in Sources */ = {isa = PBXBuildFile; fileRef = 116C4B06D7C73E510A8E63F0 /* BrandedHeading.swift */; };
+		7CF36162C28DEF7EA1FB57F9 /* ParmaInsightsCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21C052B8C300D5FCAEF84E27 /* ParmaInsightsCalculator.swift */; };
 		836EA376FDB67B6B0A81E485 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6AFB4FCE53343C9E9452AF0 /* RootView.swift */; };
 		881FD69523D2456C206DF789 /* ParmaEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85028E5824A5C50F4FD17037 /* ParmaEntry.swift */; };
 		88413C6970B04B204AFC83D4 /* StoredPhotoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 042BD46D3236D5F59C4CC761 /* StoredPhotoView.swift */; };
@@ -41,16 +44,16 @@
 		CC32EC031D835DD06586D549 /* DMSerifDisplay-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B80FC074FEC18457630BAC34 /* DMSerifDisplay-Regular.ttf */; };
 		D39BE49236572F3529F2EDCB /* SortMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07A9B76195888B938BE706A3 /* SortMenu.swift */; };
 		D874D58DB473A4A99AD01964 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FCF0CE5871DB1822C10F000 /* HomeView.swift */; };
-		A11A00010000000000000001 /* InsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11A00020000000000000001 /* InsightsView.swift */; };
-		A11A00030000000000000001 /* ParmaInsightsCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11A00040000000000000001 /* ParmaInsightsCalculator.swift */; };
-		A11A00050000000000000001 /* ParmaInsightsCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11A00060000000000000001 /* ParmaInsightsCalculatorTests.swift */; };
 		DA6E17DF9269FA89239AC837 /* PhotoStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5746FEB1E1083A180C7037BB /* PhotoStore.swift */; };
 		DFFCE2D0DFD8C6365C8C5BD6 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 496529C70AF75EFB4E0474A0 /* EmptyStateView.swift */; };
 		E47EFB882FD04F80935D8DDA /* LoggerSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3B72911C0E6A48CE60EE9CA /* LoggerSettingsView.swift */; };
 		E65FE881603EF85575EF8D42 /* BehaviourSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A5384166B7A02DBA907A3F /* BehaviourSettingsView.swift */; };
 		EA57807209718DE7606819FC /* ParmaLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24A124F0491E06A4D4A17E3C /* ParmaLogView.swift */; };
 		ED8EBF051832CAC2267FBA89 /* EntryRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5227DC10A178BA15B21E7E90 /* EntryRepository.swift */; };
+		EE9AF533466DF1A987B9FF23 /* ParmaInsightsCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 410063B9784F1081162D509E /* ParmaInsightsCalculatorTests.swift */; };
 		F65066F55302A368C0D9898B /* LocationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEC59AE87F6D1C492933CA5B /* LocationPickerView.swift */; };
+		F7ED3CB9B242A5E9603729BB /* AreaResolutionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00C7B4A5573C340055BE1E1 /* AreaResolutionService.swift */; };
+		FD6A5F5F0BBAB452615D48C5 /* InsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B55E43DB2CDA3A6F74F8B1B /* InsightsView.swift */; };
 		FE49D193ACBCB5279FC62F56 /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B59DFE6728640854A750B30 /* LocationService.swift */; };
 /* End PBXBuildFile section */
 
@@ -80,12 +83,15 @@
 		116C4B06D7C73E510A8E63F0 /* BrandedHeading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandedHeading.swift; sourceTree = "<group>"; };
 		1210EA1EC0D5B71A5EC7CA39 /* BrandStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandStyle.swift; sourceTree = "<group>"; };
 		1F102B71A0B88384400ACD1D /* OnboardingFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFlowView.swift; sourceTree = "<group>"; };
+		21C052B8C300D5FCAEF84E27 /* ParmaInsightsCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParmaInsightsCalculator.swift; sourceTree = "<group>"; };
 		22768068DF407CA3995EFE5E /* ParmaMasterUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ParmaMasterUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		24A124F0491E06A4D4A17E3C /* ParmaLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParmaLogView.swift; sourceTree = "<group>"; };
 		2B59DFE6728640854A750B30 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
 		2BD664F2760615317E8B7681 /* ComponentScoreRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComponentScoreRow.swift; sourceTree = "<group>"; };
 		3721FF99CF8D272D171BE3F4 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		410063B9784F1081162D509E /* ParmaInsightsCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParmaInsightsCalculatorTests.swift; sourceTree = "<group>"; };
 		496529C70AF75EFB4E0474A0 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
+		4B55E43DB2CDA3A6F74F8B1B /* InsightsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsView.swift; sourceTree = "<group>"; };
 		4F8332D7B5F5D2805C3B7DCE /* ParmaMasterTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ParmaMasterTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		51A5384166B7A02DBA907A3F /* BehaviourSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BehaviourSettingsView.swift; sourceTree = "<group>"; };
 		5227DC10A178BA15B21E7E90 /* EntryRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryRepository.swift; sourceTree = "<group>"; };
@@ -96,18 +102,16 @@
 		640DCC4F9396036DE0738E60 /* BackupResetSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupResetSettingsView.swift; sourceTree = "<group>"; };
 		688129E744AED38CAEDEF0EF /* EntryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryCard.swift; sourceTree = "<group>"; };
 		735AA8140169FDDBDD44C9A7 /* CameraPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPicker.swift; sourceTree = "<group>"; };
+		7A76430C7BF95D02C8E2EF73 /* AreasListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AreasListView.swift; sourceTree = "<group>"; };
 		85028E5824A5C50F4FD17037 /* ParmaEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParmaEntry.swift; sourceTree = "<group>"; };
 		88283B675B673675612C07FB /* PubDetectionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PubDetectionService.swift; sourceTree = "<group>"; };
 		8C56003924358C1043B0507D /* ParmaMasterUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParmaMasterUITests.swift; sourceTree = "<group>"; };
 		961A15E36FFD8100A587394A /* LoggerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoggerView.swift; sourceTree = "<group>"; };
-		9AC293306AD1C85D1C6BB810 /* ParmaMaster.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ParmaMaster.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9AC293306AD1C85D1C6BB810 /* ParmaMaster.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ParmaMaster.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9C1EC7728156D088D434458D /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
 		9EBDE88F5834503B9AB59690 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		9EC4BBA08AF920DCCA2AE559 /* ScoreDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreDisplay.swift; sourceTree = "<group>"; };
 		9FCF0CE5871DB1822C10F000 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
-		A11A00020000000000000001 /* InsightsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsView.swift; sourceTree = "<group>"; };
-		A11A00040000000000000001 /* ParmaInsightsCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParmaInsightsCalculator.swift; sourceTree = "<group>"; };
-		A11A00060000000000000001 /* ParmaInsightsCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParmaInsightsCalculatorTests.swift; sourceTree = "<group>"; };
 		A6AFB4FCE53343C9E9452AF0 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		AD0780C85DA71A117F6D7CBA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		ADF1829E602E040FFA4A853D /* MapSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapSearchService.swift; sourceTree = "<group>"; };
@@ -115,10 +119,12 @@
 		B296C133B9E80B36ED606264 /* ParmaDetailsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParmaDetailsView.swift; sourceTree = "<group>"; };
 		B3B72911C0E6A48CE60EE9CA /* LoggerSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoggerSettingsView.swift; sourceTree = "<group>"; };
 		B80FC074FEC18457630BAC34 /* DMSerifDisplay-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "DMSerifDisplay-Regular.ttf"; sourceTree = "<group>"; };
+		C00C7B4A5573C340055BE1E1 /* AreaResolutionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AreaResolutionService.swift; sourceTree = "<group>"; };
 		D764ECCB107B06C8A78C96AD /* SearchEntriesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchEntriesView.swift; sourceTree = "<group>"; };
 		DC3EA81496444F192A65018D /* ParmaMasterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParmaMasterTests.swift; sourceTree = "<group>"; };
 		E461511266F4FD4C3D7867BA /* AppearanceSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceSettingsView.swift; sourceTree = "<group>"; };
 		EEC59AE87F6D1C492933CA5B /* LocationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationPickerView.swift; sourceTree = "<group>"; };
+		F1AE98BBED58C43A978AA107 /* RerunSuggestionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RerunSuggestionService.swift; sourceTree = "<group>"; };
 		FFE7120B7CA31F923BE8B68C /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -128,7 +134,7 @@
 			children = (
 				5790A89CF92656FA452F2AE9 /* Details */,
 				3F53290F33248B23A5D359F0 /* Home */,
-				A11A00070000000000000001 /* Insights */,
+				95D7BB6A445298FB50A08005 /* Insights */,
 				BAF7C76B71AB30A573F14DDA /* Logger */,
 				7C7E30089DF99FBF4D0AE91A /* Onboarding */,
 				3047EE90433534B14810068F /* ParmaLog */,
@@ -141,14 +147,16 @@
 		26D8F7BF49D908C2FDFA8413 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				C00C7B4A5573C340055BE1E1 /* AreaResolutionService.swift */,
 				0F246F525D2A6456B6A02899 /* BackupService.swift */,
 				5227DC10A178BA15B21E7E90 /* EntryRepository.swift */,
 				2B59DFE6728640854A750B30 /* LocationService.swift */,
 				ADF1829E602E040FFA4A853D /* MapSearchService.swift */,
 				FFE7120B7CA31F923BE8B68C /* NotificationService.swift */,
+				21C052B8C300D5FCAEF84E27 /* ParmaInsightsCalculator.swift */,
 				5746FEB1E1083A180C7037BB /* PhotoStore.swift */,
 				88283B675B673675612C07FB /* PubDetectionService.swift */,
-				A11A00040000000000000001 /* ParmaInsightsCalculator.swift */,
+				F1AE98BBED58C43A978AA107 /* RerunSuggestionService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -257,6 +265,15 @@
 			path = Shared;
 			sourceTree = "<group>";
 		};
+		95D7BB6A445298FB50A08005 /* Insights */ = {
+			isa = PBXGroup;
+			children = (
+				7A76430C7BF95D02C8E2EF73 /* AreasListView.swift */,
+				4B55E43DB2CDA3A6F74F8B1B /* InsightsView.swift */,
+			);
+			path = Insights;
+			sourceTree = "<group>";
+		};
 		9C3D60285D93509CC3B1A24A = {
 			isa = PBXGroup;
 			children = (
@@ -271,8 +288,8 @@
 		A3C4BA5DB553E2B1D952F11D /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				410063B9784F1081162D509E /* ParmaInsightsCalculatorTests.swift */,
 				DC3EA81496444F192A65018D /* ParmaMasterTests.swift */,
-				A11A00060000000000000001 /* ParmaInsightsCalculatorTests.swift */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -287,14 +304,6 @@
 				9EBDE88F5834503B9AB59690 /* SettingsView.swift */,
 			);
 			path = Settings;
-			sourceTree = "<group>";
-		};
-		A11A00070000000000000001 /* Insights */ = {
-			isa = PBXGroup;
-			children = (
-				A11A00020000000000000001 /* InsightsView.swift */,
-			);
-			path = Insights;
 			sourceTree = "<group>";
 		};
 		B2D6E0A08A97B7EA886EEC04 /* Fonts */ = {
@@ -412,7 +421,6 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					5199AE7178AB17E24281C17A = {
-						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 					6CBE10E243BAA60475E2E2C5 = {
@@ -476,6 +484,8 @@
 				1138FD2C91812044D8F2DCB5 /* AppRouter.swift in Sources */,
 				62D3986BDD26167C0A3272B4 /* AppSettings.swift in Sources */,
 				C144696961CE65A5DD3FED95 /* AppearanceSettingsView.swift in Sources */,
+				F7ED3CB9B242A5E9603729BB /* AreaResolutionService.swift in Sources */,
+				68C994D8C7048944E904EA69 /* AreasListView.swift in Sources */,
 				A7AB29F13A7A44FB9D9CD0BF /* AspectFillImage.swift in Sources */,
 				669C6766820B7CCE80FFDCEB /* BackupPayload.swift in Sources */,
 				40CCD0ACD77E1A39788A5CDB /* BackupResetSettingsView.swift in Sources */,
@@ -489,7 +499,7 @@
 				3048E630B187173DA350D215 /* EntryCard.swift in Sources */,
 				ED8EBF051832CAC2267FBA89 /* EntryRepository.swift in Sources */,
 				D874D58DB473A4A99AD01964 /* HomeView.swift in Sources */,
-				A11A00010000000000000001 /* InsightsView.swift in Sources */,
+				FD6A5F5F0BBAB452615D48C5 /* InsightsView.swift in Sources */,
 				F65066F55302A368C0D9898B /* LocationPickerView.swift in Sources */,
 				FE49D193ACBCB5279FC62F56 /* LocationService.swift in Sources */,
 				E47EFB882FD04F80935D8DDA /* LoggerSettingsView.swift in Sources */,
@@ -499,12 +509,13 @@
 				5245841FD10BC3695B5F85D6 /* OnboardingFlowView.swift in Sources */,
 				B8F342CE3D48AC1F2A8AE08D /* ParmaDetailsView.swift in Sources */,
 				881FD69523D2456C206DF789 /* ParmaEntry.swift in Sources */,
+				7CF36162C28DEF7EA1FB57F9 /* ParmaInsightsCalculator.swift in Sources */,
 				EA57807209718DE7606819FC /* ParmaLogView.swift in Sources */,
-				A11A00030000000000000001 /* ParmaInsightsCalculator.swift in Sources */,
 				9BDD68AD1D280766941E604B /* ParmaMasterApp.swift in Sources */,
 				DA6E17DF9269FA89239AC837 /* PhotoStore.swift in Sources */,
 				267FC2D1F3FC824223CEA3D3 /* PubDetectionService.swift in Sources */,
 				40440C55F6A44953BDB9EDD6 /* RatingModels.swift in Sources */,
+				6630A9F7F3AC77D7C2C79CE4 /* RerunSuggestionService.swift in Sources */,
 				836EA376FDB67B6B0A81E485 /* RootView.swift in Sources */,
 				90795F2E18D1A6C1687D6808 /* ScoreDisplay.swift in Sources */,
 				69FE5F3F72EE7D19DEE9CCE4 /* SearchEntriesView.swift in Sources */,
@@ -519,8 +530,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EE9AF533466DF1A987B9FF23 /* ParmaInsightsCalculatorTests.swift in Sources */,
 				3BA839AE9729475A4520927C /* ParmaMasterTests.swift in Sources */,
-				A11A00050000000000000001 /* ParmaInsightsCalculatorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -741,6 +752,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 37H56322GK;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -759,6 +771,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 37H56322GK;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (

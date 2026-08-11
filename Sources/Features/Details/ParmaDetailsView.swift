@@ -23,6 +23,16 @@ struct ParmaDetailsView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
+                if entry.venue?.excludedFromRerun == true {
+                    Label("Not shown in re-run suggestions", systemImage: "eye.slash")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(Color(.tertiarySystemFill), in: .capsule)
+                        .accessibilityLabel("This place is not shown in re-run suggestions")
+                }
+
                 Text("Your ranking")
                     .font(BrandStyle.displayFont(35, relativeTo: .title))
                     .accessibilityAddTraits(.isHeader)
@@ -69,6 +79,16 @@ struct ParmaDetailsView: View {
                 Menu {
                     Button("Edit Entry", systemImage: "pencil") { router.edit(entry) }
                     Button("Rate Again", systemImage: "arrow.clockwise") { router.rateAgain(entry) }
+                    if let venue = entry.venue {
+                        Button(
+                            venue.excludedFromRerun
+                                ? "Include in re-run suggestions"
+                                : "Do not suggest this place for a re-run",
+                            systemImage: venue.excludedFromRerun ? "arrow.triangle.2.circlepath" : "eye.slash"
+                        ) {
+                            toggleRerunExclusion(for: venue)
+                        }
+                    }
                 } label: {
                     Text("Edit")
                 }
@@ -81,7 +101,7 @@ struct ParmaDetailsView: View {
         } message: {
             Text("This permanently deletes the entry, all rating history, notes and its locally stored photo.")
         }
-        .alert("Couldn’t Delete Entry", isPresented: Binding(
+        .alert("Couldn’t Update Entry", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
         )) {
@@ -91,11 +111,22 @@ struct ParmaDetailsView: View {
         }
     }
 
+    private func toggleRerunExclusion(for venue: Venue) {
+        venue.excludedFromRerun.toggle()
+        do {
+            try modelContext.save()
+            backupService.markDirty()
+        } catch {
+            venue.excludedFromRerun.toggle()
+            errorMessage = "The re-run preference could not be saved. Please try again."
+        }
+    }
+
     private func deleteEntry() {
         do {
             try repository.delete(entry, photoStore: photoStore, in: modelContext)
             backupService.markDirty()
-            router.presentedDetails = nil
+            router.dismissDetails()
             dismiss()
         } catch {
             errorMessage = "The entry could not be deleted. Please try again."

@@ -55,6 +55,7 @@ final class LocalParmaRepository: ParmaRepositoryProtocol {
         )
         context.insert(entry)
         try context.save()
+        AreaResolutionService.scheduleResolveIfNeeded(venue, in: context)
         return entry
     }
 
@@ -78,16 +79,23 @@ final class LocalParmaRepository: ParmaRepositoryProtocol {
         }
 
         let currentVenue = entry.venue
+        let coordinatesChanged =
+            currentVenue?.latitude != candidate.latitude
+            || currentVenue?.longitude != candidate.longitude
         currentVenue?.mapItemIdentifier = candidate.mapItemIdentifier ?? currentVenue?.mapItemIdentifier
         currentVenue?.venueIdentity = VenueIdentity.key(for: candidate)
         currentVenue?.name = candidate.name
         currentVenue?.formattedAddress = candidate.formattedAddress
         currentVenue?.latitude = candidate.latitude
         currentVenue?.longitude = candidate.longitude
+        if coordinatesChanged {
+            currentVenue?.locality = nil
+        }
         entry.notes = notes
         entry.photoFilename = photoFilename
         entry.lastModifiedAt = .now
         try context.save()
+        AreaResolutionService.scheduleResolveIfNeeded(currentVenue, in: context)
     }
 
     func delete(_ entry: ParmaEntry, photoStore: PhotoStore, in context: ModelContext) throws {

@@ -32,10 +32,14 @@ struct RootView: View {
                 ParmaDetailsView(entry: entry)
             }
         }
+        .sheet(isPresented: $router.showingAreasList) {
+            AreasListView()
+        }
         .task {
             backupService.configure(context: modelContext, settings: settings, photoStore: photoStore)
             await notificationService.refreshStatus()
             configureLocationPipeline(sceneIsActive: scenePhase == .active)
+            await AreaResolutionService.backfillMissingLocalities(in: modelContext)
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
@@ -100,16 +104,14 @@ struct RootView: View {
         if let idString = userInfo["entryID"] as? String,
            let id = UUID(uuidString: idString),
            let entry = entries.first(where: { $0.id == id }) {
-            router.selectedTab = .log
-            router.presentedDetails = entry
+            router.openLogEntry(entry)
             return
         }
 
         if let encoded = userInfo["venue"] as? String,
            let data = Data(base64Encoded: encoded),
            let venue = try? JSONDecoder().decode(VenueCandidate.self, from: data) {
-            router.selectedTab = .home
-            router.log(venue: venue)
+            router.openHomeLogger(venue: venue)
         }
     }
 }
@@ -128,34 +130,70 @@ private struct MainTabView: View {
             Tab("Home", systemImage: "house", value: .home) {
                 HomeView()
                     .id(homeRootID)
+                    .modifier(TabEntranceEffect())
             }
             Tab("Parma Log", systemImage: "book.pages", value: .log) {
                 ParmaLogView()
                     .id(logRootID)
+                    .modifier(TabEntranceEffect())
             }
             Tab("Insights", systemImage: "chart.bar.xaxis", value: .insights) {
                 InsightsView()
                     .id(insightsRootID)
+                    .modifier(TabEntranceEffect())
             }
             Tab("Settings", systemImage: "gear", value: .settings) {
                 SettingsView()
                     .id(settingsRootID)
+                    .modifier(TabEntranceEffect())
             }
             Tab("Search", systemImage: "magnifyingglass", value: .search, role: .search) {
                 SearchEntriesView()
                     .id(searchRootID)
+                    .modifier(TabEntranceEffect())
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
+        // TabView never animates programmatic selection changes (e.g. Home card
+        // taps into Insights or the Parma Log), so the incoming tab animates its
+        // own content in via TabEntranceEffect instead.
         .onChange(of: router.selectedTab) { previousTab, selectedTab in
             guard previousTab != selectedTab else { return }
-            switch previousTab {
-            case .home: homeRootID = UUID()
-            case .log: logRootID = UUID()
-            case .insights: insightsRootID = UUID()
-            case .settings: settingsRootID = UUID()
-            case .search: searchRootID = UUID()
+            // Delay remounting the previous tab so nested navigation pops after the
+            // tab bar has settled — resetting `.id` immediately makes switches feel abrupt.
+            Task { @MainActor in
+                try? await Task.sleep(for: BrandMotion.tabTransitionDelay)
+                guard router.selectedTab == selectedTab else { return }
+                switch previousTab {
+                case .home: homeRootID = UUID()
+                case .log: logRootID = UUID()
+                case .insights: insightsRootID = UUID()
+                case .settings: settingsRootID = UUID()
+                case .search: searchRootID = UUID()
+                }
             }
         }
+    }
+}
+
+/// Fades and rises tab content in whenever its tab becomes visible.
+/// `onAppear`/`onDisappear` fire on every tab selection change, so this runs
+/// for both tab-bar taps and programmatic switches from Home cards.
+private struct TabEntranceEffect: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isSettled = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(isSettled ? 1 : 0)
+            .offset(y: isSettled ? 0 : 12)
+            .onAppear {
+                if reduceMotion {
+                    isSettled = true
+                } else {
+                    withAnimation(BrandMotion.standard) { isSettled = true }
+                }
+            }
+            .onDisappear { isSettled = false }
     }
 }

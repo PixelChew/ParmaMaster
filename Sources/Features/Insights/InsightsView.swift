@@ -8,9 +8,10 @@ struct InsightsView: View {
     @Query private var entries: [ParmaEntry]
     @State private var selectedEntry: ParmaEntry?
 
-    private var insights: ParmaInsights { ParmaInsightsCalculator.calculate(entries) }
-
     var body: some View {
+        // Calculate once per render: the calculator decodes every entry's rating
+        // JSON, so recomputing it per statistic hangs the UI on larger logs.
+        let insights = ParmaInsightsCalculator.calculate(entries)
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 20) {
@@ -28,11 +29,10 @@ struct InsightsView: View {
                         .frame(minHeight: 320)
                     } else {
                         ParmaMapView(entries: entries, selectedEntry: $selectedEntry)
-                        headlineStatistics
-                        extremeSection
-                        perfectScoresSection
-                        additionalStatistics
-                        componentAverages
+                        headlineStatistics(insights)
+                        extremeSection(insights)
+                        perfectScoresSection(insights)
+                        componentAverages(insights)
                     }
                 }
                 .padding(.horizontal, BrandStyle.pagePadding)
@@ -42,19 +42,57 @@ struct InsightsView: View {
         }
     }
 
-    private var headlineStatistics: some View {
+    private func headlineStatistics(_ insights: ParmaInsights) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("At a glance").font(BrandStyle.displayFont(29, relativeTo: .title))
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                StatisticCard(value: "\(insights.parmasLogged)", label: "Parmas logged", systemImage: "fork.knife")
-                StatisticCard(value: insights.averageNormalisedScore.map { $0.tenPointEquivalent.insightScoreString } ?? "—", label: "Average rating", systemImage: "chart.bar")
-                StatisticCard(value: insights.highestNormalisedScore.map { $0.tenPointEquivalent.insightScoreString } ?? "—", label: "Highest rating", systemImage: "arrow.up.right")
-                StatisticCard(value: insights.lowestNormalisedScore.map { $0.tenPointEquivalent.insightScoreString } ?? "—", label: "Lowest rating", systemImage: "arrow.down.right")
+                StatisticCard(
+                    value: "\(insights.parmasLogged)",
+                    label: "Parmas logged",
+                    systemImage: "fork.knife",
+                    subtitle: ratingsSubmittedSubtitle(insights)
+                )
+                StatisticCard(
+                    value: insights.averageNormalisedScore.map { $0.tenPointEquivalent.insightScoreString } ?? "—",
+                    label: "Average rating",
+                    systemImage: "chart.bar"
+                )
+                StatisticCard(
+                    value: insights.highestNormalisedScore.map { $0.tenPointEquivalent.insightScoreString } ?? "—",
+                    label: "Highest rating",
+                    systemImage: "arrow.up.right"
+                )
+                StatisticCard(
+                    value: insights.lowestNormalisedScore.map { $0.tenPointEquivalent.insightScoreString } ?? "—",
+                    label: "Lowest rating",
+                    systemImage: "arrow.down.right"
+                )
+                Button {
+                    router.showAreasList()
+                } label: {
+                    StatisticCard(
+                        value: "\(insights.areasVisited)",
+                        label: "Areas visited",
+                        systemImage: "mappin.and.ellipse"
+                    )
+                }
+                .buttonStyle(BrandScaleButtonStyle())
+                .accessibilityHint("Shows areas list")
+                StatisticCard(
+                    value: "\(insights.parmasLoggedThisYear)",
+                    label: "Parmas logged this year",
+                    systemImage: "calendar"
+                )
             }
         }
     }
 
-    private var extremeSection: some View {
+    private func ratingsSubmittedSubtitle(_ insights: ParmaInsights) -> String {
+        let count = insights.ratingsSubmitted
+        return "\(count) rating\(count == 1 ? "" : "s") submitted"
+    }
+
+    private func extremeSection(_ insights: ParmaInsights) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Standouts").font(BrandStyle.displayFont(29, relativeTo: .title))
             VenueInsightGroup(title: "Highest rated", entries: insights.highestEntries, action: present)
@@ -62,7 +100,7 @@ struct InsightsView: View {
         }
     }
 
-    private var perfectScoresSection: some View {
+    private func perfectScoresSection(_ insights: ParmaInsights) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Perfect scores").font(BrandStyle.displayFont(29, relativeTo: .title))
@@ -82,21 +120,7 @@ struct InsightsView: View {
         }
     }
 
-    private var additionalStatistics: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("More history").font(BrandStyle.displayFont(29, relativeTo: .title))
-            StatisticCard(value: "\(insights.ratingsSubmitted)", label: "Ratings submitted", systemImage: "arrow.clockwise")
-            StatisticCard(value: "\(insights.parmasLoggedThisYear)", label: "Parmas logged this year", systemImage: "calendar")
-            if let recent = insights.mostRecentlyLogged {
-                VenueInsightGroup(title: "Most recently logged", entries: [recent], action: present)
-            }
-            if !insights.mostRevisitedEntries.isEmpty {
-                VenueInsightGroup(title: "Most revisited", entries: insights.mostRevisitedEntries, showsVisits: true, action: present)
-            }
-        }
-    }
-
-    private var componentAverages: some View {
+    private func componentAverages(_ insights: ParmaInsights) -> some View {
         Group {
             if !insights.componentAverages.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
@@ -119,7 +143,7 @@ struct InsightsView: View {
     }
 
     private func present(_ entry: ParmaEntry) {
-        router.presentedDetails = entry
+        router.presentDetails(entry)
     }
 }
 
@@ -127,6 +151,7 @@ private struct StatisticCard: View {
     let value: String
     let label: String
     let systemImage: String
+    var subtitle: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -139,6 +164,11 @@ private struct StatisticCard: View {
             Text(label)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+            if let subtitle {
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
         }
         .frame(maxWidth: .infinity, minHeight: 132, alignment: .leading)
         .brandCard()
@@ -174,7 +204,7 @@ private struct VenueInsightGroup: View {
                             .fixedSize()
                     }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(BrandScaleButtonStyle())
                 .accessibilityHint("Opens Parma details")
                 if entry.id != entries.last?.id { Divider() }
             }
@@ -225,15 +255,17 @@ private struct ParmaMapView: View {
                 }
                 .padding()
                 .background(Color(.secondarySystemBackground))
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .animation(BrandMotion.standard, value: selectedEntry?.id)
         .clipShape(.rect(cornerRadius: BrandStyle.cardRadius))
         .overlay(RoundedRectangle(cornerRadius: BrandStyle.cardRadius).stroke(Color.primary.opacity(0.08)))
         .accessibilityElement(children: .contain)
     }
 
     @Environment(AppRouter.self) private var router
-    private func routerPresent(_ entry: ParmaEntry) { router.presentedDetails = entry }
+    private func routerPresent(_ entry: ParmaEntry) { router.presentDetails(entry) }
 
     private func frameEntries() {
         guard !mappableEntries.isEmpty else { return }
