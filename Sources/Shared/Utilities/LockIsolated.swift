@@ -1,8 +1,8 @@
 import Foundation
 
 /// Minimal lock-guarded box for values shared across concurrency domains,
-/// used by the SwiftData migration stages (audit finding A-08) instead of
-/// `nonisolated(unsafe)` statics.
+/// used by the SwiftData migration stages instead of `nonisolated(unsafe)`
+/// statics.
 final class LockIsolated<Value>: @unchecked Sendable {
     private let lock = NSLock()
     private var value: Value
