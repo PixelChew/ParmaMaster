@@ -117,7 +117,7 @@ struct AreasListView: View {
     @State private var selectedArea: AreaSummary?
 
     var body: some View {
-        // Aggregated once per render; the empty check and search filter share it (audit per-surface note).
+        // Aggregate once per render so the empty check and search filter share it.
         let allAreas = AreaAggregator.areas(from: entries)
         let filteredAreas = filtered(allAreas)
         NavigationStack {
@@ -212,7 +212,7 @@ private struct AreaEntriesView: View {
     @Query private var entries: [ParmaEntry]
 
     var body: some View {
-        // Filtered and sorted once per render (audit per-surface note).
+        // Filter and sort once per render.
         let areaEntries = entries
             .filter { entry in
                 guard let locality = AreaNameResolver.cleaned(entry.venue?.locality) else { return false }
