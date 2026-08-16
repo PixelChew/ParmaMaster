@@ -151,15 +151,23 @@ final class PubDetectionService {
             dwellStartedAt = now()
         }
 
-        let hasDwelled = dwellStartedAt.map { now().timeIntervalSince($0) >= DetectionTuning.dwellDuration } ?? false
-        guard throttleExpired, foregroundCheck || hasDwelled else { return }
+        let reminderDelay = TimeInterval(settings.locationReminderDelayMinutes * 60)
+        let hasDwelled = dwellStartedAt.map { now().timeIntervalSince($0) >= reminderDelay } ?? false
 
         // A settled visit needs no further searching (audit finding B-04): the
-        // venue is known and the notification decision has been made.
-        guard !insideSettledVisit else { return }
+        // venue is known. A foreground check can identify it immediately for
+        // the Home card, but its reminder still waits for the chosen delay.
+        if insideSettledVisit {
+            if hasDwelled, let candidate = visitSession?.candidate {
+                await notifyIfAppropriate(for: candidate, existingEntry: existingEntry(for: candidate))
+            }
+            return
+        }
+
+        guard throttleExpired, foregroundCheck || hasDwelled else { return }
 
         lastSearchAt = now()
-        await searchAndClassify(around: location)
+        await searchAndClassify(around: location, shouldNotify: hasDwelled)
     }
 
     // MARK: - Background events
@@ -234,7 +242,7 @@ final class PubDetectionService {
         lastSearchAt.map { now().timeIntervalSince($0) >= DetectionTuning.searchThrottle } ?? true
     }
 
-    private func searchAndClassify(around location: CLLocation) async {
+    private func searchAndClassify(around location: CLLocation, shouldNotify: Bool = true) async {
         metrics.recordSearch(now: now())
         do {
             let candidates = try await mapSearch.nearbyPubCandidates(around: location)
@@ -265,8 +273,10 @@ final class PubDetectionService {
             establishVisit(for: first)
             guard visitSession?.skipped != true else { return }
             currentCandidate = first
-            let existingEntry = existingEntry(for: first)
-            await notifyIfAppropriate(for: first, existingEntry: existingEntry)
+            if shouldNotify {
+                let existingEntry = existingEntry(for: first)
+                await notifyIfAppropriate(for: first, existingEntry: existingEntry)
+            }
         } catch {
             AppLog.detection.error("Nearby venue lookup failed: \(error.localizedDescription)")
             statusMessage = "Nearby venue lookup is unavailable. You can still search manually."
