@@ -22,7 +22,7 @@ final class PubDetectionServiceTests: XCTestCase {
         await harness.service.process(location: harness.userLocation())
         XCTAssertEqual(harness.mapSearch.searchCount, 0)
 
-        harness.clock.advance(by: DetectionTuning.dwellDuration + 30)
+        harness.clock.advance(by: TimeInterval(harness.settings.locationReminderDelayMinutes * 60) + 30)
         await harness.service.process(location: harness.userLocation())
 
         XCTAssertEqual(harness.mapSearch.searchCount, 1)
@@ -51,6 +51,22 @@ final class PubDetectionServiceTests: XCTestCase {
 
         XCTAssertEqual(harness.mapSearch.searchCount, 1)
         XCTAssertEqual(harness.service.currentCandidate?.name, "Foreground Hotel")
+        XCTAssertTrue(harness.notifier.scheduled.isEmpty)
+    }
+
+    func testConfiguredDwellDurationDelaysTheReminderAfterAForegroundCheck() async throws {
+        let harness = try makeHarness()
+        defer { harness.cleanUp() }
+        harness.settings.locationReminderDelayMinutes = 5
+        harness.mapSearch.results = [pubCandidate(named: "Delay Hotel")]
+
+        await harness.service.process(location: harness.userLocation(), foregroundCheck: true)
+        XCTAssertTrue(harness.notifier.scheduled.isEmpty)
+
+        harness.clock.advance(by: 5 * 60 + 1)
+        await harness.service.process(location: harness.userLocation())
+
+        XCTAssertEqual(harness.notifier.scheduled.count, 1)
     }
 
     // MARK: - Search throttle
@@ -95,7 +111,7 @@ final class PubDetectionServiceTests: XCTestCase {
         harness.mapSearch.results = [pubCandidate(named: "Settled Hotel")]
 
         await harness.service.process(location: harness.userLocation())
-        harness.clock.advance(by: DetectionTuning.dwellDuration + 30)
+        harness.clock.advance(by: TimeInterval(harness.settings.locationReminderDelayMinutes * 60) + 30)
         await harness.service.process(location: harness.userLocation())
         XCTAssertEqual(harness.mapSearch.searchCount, 1)
         XCTAssertEqual(harness.notifier.scheduled.count, 1)
@@ -163,7 +179,7 @@ final class PubDetectionServiceTests: XCTestCase {
         harness.clock.advance(by: 60 * 60)
 
         await harness.service.process(location: harness.userLocation())
-        harness.clock.advance(by: DetectionTuning.dwellDuration + 30)
+        harness.clock.advance(by: TimeInterval(harness.settings.locationReminderDelayMinutes * 60) + 30)
         await harness.service.process(location: harness.userLocation())
 
         XCTAssertEqual(harness.mapSearch.searchCount, 2)

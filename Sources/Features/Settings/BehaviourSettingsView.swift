@@ -49,6 +49,14 @@ struct BehaviourSettingsView: View {
                     .foregroundStyle(.orange)
                 }
 
+                if settings.locationRemindersEnabled {
+                    Picker("Remind after", selection: $settings.locationReminderDelayMinutes) {
+                        ForEach(LocationReminderDelay.allCases) { delay in
+                            Text(delay.displayName).tag(delay.rawValue)
+                        }
+                    }
+                }
+
                 if locationService.authorizationStatus == .denied
                     || locationService.authorizationStatus == .restricted
                     || (settings.locationRemindersEnabled && locationService.authorizationStatus != .authorizedAlways) {
@@ -57,7 +65,7 @@ struct BehaviourSettingsView: View {
             } header: {
                 Text("Location")
             } footer: {
-                Text("Parma Master uses your location to find pubs and send a friendly reminder when you visit somewhere worth logging. Choose “Always” so reminders still work when the app is closed.\n\n\(pubDetection.diagnosticsSummary)")
+                Text("Parma Master uses your location to find pubs and sends a friendly reminder after you have stayed for the selected time. Choose “Always” so reminders still work when the app is closed.\n\n\(pubDetection.diagnosticsSummary)")
             }
 
             Section("Notifications") {

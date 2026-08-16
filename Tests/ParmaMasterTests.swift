@@ -120,9 +120,20 @@ final class ParmaMasterTests: XCTestCase {
         XCTAssertEqual(snapshot.accentHex, "#112233")
         XCTAssertFalse(snapshot.photoFeatureEnabled)
         XCTAssertTrue(snapshot.locationUseEnabled)
+        XCTAssertEqual(snapshot.locationReminderDelayMinutes, 30)
         XCTAssertTrue(snapshot.rerunSuggestionsEnabled)
         XCTAssertEqual(snapshot.rerunStaleMonths, 5)
         XCTAssertEqual(snapshot.rerunHideMonths, 1)
+    }
+
+    func testAppSettingsSnapshotUsesDefaultReminderDelayForUnsupportedValues() throws {
+        let json = """
+        { "locationReminderDelayMinutes": 25 }
+        """.data(using: .utf8)!
+
+        let snapshot = try JSONDecoder().decode(AppSettingsSnapshot.self, from: json)
+
+        XCTAssertEqual(snapshot.locationReminderDelayMinutes, 30)
     }
 
     func testVenueBackupRoundtripPreservesLocalityAndExclusion() throws {
