@@ -19,6 +19,28 @@ enum AppTheme: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 }
 
+enum LocationReminderDelay: Int, CaseIterable, Identifiable, Sendable {
+    case five = 5
+    case ten = 10
+    case fifteen = 15
+    case twenty = 20
+    case thirty = 30
+    case fortyFive = 45
+    case sixty = 60
+
+    static let defaultValue: Self = .thirty
+
+    var id: Int { rawValue }
+
+    var displayName: String {
+        rawValue == 60 ? "1 hour" : "\(rawValue) minutes"
+    }
+
+    static func value(for minutes: Int) -> Self {
+        Self(rawValue: minutes) ?? defaultValue
+    }
+}
+
 struct AppSettingsSnapshot: Codable, Hashable, Sendable {
     var hasCompletedOnboarding = false
     var theme = AppTheme.system
@@ -27,6 +49,7 @@ struct AppSettingsSnapshot: Codable, Hashable, Sendable {
     var photoFeatureEnabled = true
     var locationUseEnabled = false
     var locationRemindersEnabled = false
+    var locationReminderDelayMinutes = LocationReminderDelay.defaultValue.rawValue
     var automaticBackupsEnabled = false
     var rerunSuggestionsEnabled = true
     var rerunStaleMonths = 5
@@ -40,6 +63,7 @@ struct AppSettingsSnapshot: Codable, Hashable, Sendable {
         case photoFeatureEnabled
         case locationUseEnabled
         case locationRemindersEnabled
+        case locationReminderDelayMinutes
         case automaticBackupsEnabled
         case rerunSuggestionsEnabled
         case rerunStaleMonths
@@ -54,6 +78,7 @@ struct AppSettingsSnapshot: Codable, Hashable, Sendable {
         photoFeatureEnabled: Bool = true,
         locationUseEnabled: Bool = false,
         locationRemindersEnabled: Bool = false,
+        locationReminderDelayMinutes: Int = LocationReminderDelay.defaultValue.rawValue,
         automaticBackupsEnabled: Bool = false,
         rerunSuggestionsEnabled: Bool = true,
         rerunStaleMonths: Int = 5,
@@ -66,6 +91,7 @@ struct AppSettingsSnapshot: Codable, Hashable, Sendable {
         self.photoFeatureEnabled = photoFeatureEnabled
         self.locationUseEnabled = locationUseEnabled
         self.locationRemindersEnabled = locationRemindersEnabled
+        self.locationReminderDelayMinutes = LocationReminderDelay.value(for: locationReminderDelayMinutes).rawValue
         self.automaticBackupsEnabled = automaticBackupsEnabled
         self.rerunSuggestionsEnabled = rerunSuggestionsEnabled
         self.rerunStaleMonths = rerunStaleMonths
@@ -81,6 +107,7 @@ struct AppSettingsSnapshot: Codable, Hashable, Sendable {
         photoFeatureEnabled = try container.decodeIfPresent(Bool.self, forKey: .photoFeatureEnabled) ?? true
         locationUseEnabled = try container.decodeIfPresent(Bool.self, forKey: .locationUseEnabled) ?? false
         locationRemindersEnabled = try container.decodeIfPresent(Bool.self, forKey: .locationRemindersEnabled) ?? false
+        locationReminderDelayMinutes = LocationReminderDelay.value(for: try container.decodeIfPresent(Int.self, forKey: .locationReminderDelayMinutes) ?? LocationReminderDelay.defaultValue.rawValue).rawValue
         automaticBackupsEnabled = try container.decodeIfPresent(Bool.self, forKey: .automaticBackupsEnabled) ?? false
         rerunSuggestionsEnabled = try container.decodeIfPresent(Bool.self, forKey: .rerunSuggestionsEnabled) ?? true
         rerunStaleMonths = try container.decodeIfPresent(Int.self, forKey: .rerunStaleMonths) ?? 5
@@ -101,6 +128,7 @@ final class AppSettings {
     var photoFeatureEnabled: Bool { didSet { persist() } }
     var locationUseEnabled: Bool { didSet { persist() } }
     var locationRemindersEnabled: Bool { didSet { persist() } }
+    var locationReminderDelayMinutes: Int { didSet { persist() } }
     var automaticBackupsEnabled: Bool { didSet { persist() } }
     var rerunSuggestionsEnabled: Bool { didSet { persist() } }
     var rerunStaleMonths: Int { didSet { persist() } }
@@ -122,6 +150,7 @@ final class AppSettings {
         photoFeatureEnabled = stored.photoFeatureEnabled
         locationUseEnabled = stored.locationUseEnabled
         locationRemindersEnabled = stored.locationRemindersEnabled
+        locationReminderDelayMinutes = stored.locationReminderDelayMinutes
         automaticBackupsEnabled = stored.automaticBackupsEnabled
         rerunSuggestionsEnabled = stored.rerunSuggestionsEnabled
         rerunStaleMonths = stored.rerunStaleMonths
@@ -142,6 +171,7 @@ final class AppSettings {
             photoFeatureEnabled: photoFeatureEnabled,
             locationUseEnabled: locationUseEnabled,
             locationRemindersEnabled: locationRemindersEnabled,
+            locationReminderDelayMinutes: locationReminderDelayMinutes,
             automaticBackupsEnabled: automaticBackupsEnabled,
             rerunSuggestionsEnabled: rerunSuggestionsEnabled,
             rerunStaleMonths: rerunStaleMonths,
@@ -158,6 +188,7 @@ final class AppSettings {
         photoFeatureEnabled = snapshot.photoFeatureEnabled
         locationUseEnabled = snapshot.locationUseEnabled
         locationRemindersEnabled = snapshot.locationUseEnabled && snapshot.locationRemindersEnabled
+        locationReminderDelayMinutes = LocationReminderDelay.value(for: snapshot.locationReminderDelayMinutes).rawValue
         automaticBackupsEnabled = snapshot.automaticBackupsEnabled
         rerunSuggestionsEnabled = snapshot.rerunSuggestionsEnabled
         rerunStaleMonths = snapshot.rerunStaleMonths
