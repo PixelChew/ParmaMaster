@@ -35,6 +35,7 @@ final class BackupService {
     private var settings: AppSettings?
     private var photoStore: PhotoStore?
     private var debounceTask: Task<Void, Never>?
+    var dataDidChange: (() -> Void)?
 
     var isDirty = false
     var isWorking = false
@@ -309,6 +310,7 @@ final class BackupService {
         settings.apply(payload.settings)
         isDirty = false
         statusMessage = "Backup restored successfully."
+        dataDidChange?()
     }
 
     private func resolvedDirectoryURL() throws -> URL {

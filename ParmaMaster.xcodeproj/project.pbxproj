@@ -53,6 +53,7 @@
 		D374844B2CD4A57C156A3CEE /* Tuning.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEB1E50857DB592FE8BE5FA6 /* Tuning.swift */; };
 		D39BE49236572F3529F2EDCB /* SortMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07A9B76195888B938BE706A3 /* SortMenu.swift */; };
 		D874D58DB473A4A99AD01964 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FCF0CE5871DB1822C10F000 /* HomeView.swift */; };
+		D9B5203F8C7E5F0B9D2E1A4C /* InsightsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8A41F2E7B6D4E9A8C1D0F3B /* InsightsStore.swift */; };
 		DA6E17DF9269FA89239AC837 /* PhotoStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5746FEB1E1083A180C7037BB /* PhotoStore.swift */; };
 		DFFCE2D0DFD8C6365C8C5BD6 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 496529C70AF75EFB4E0474A0 /* EmptyStateView.swift */; };
 		E47EFB882FD04F80935D8DDA /* LoggerSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3B72911C0E6A48CE60EE9CA /* LoggerSettingsView.swift */; };
@@ -93,6 +94,7 @@
 		1210EA1EC0D5B71A5EC7CA39 /* BrandStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandStyle.swift; sourceTree = "<group>"; };
 		1F102B71A0B88384400ACD1D /* OnboardingFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFlowView.swift; sourceTree = "<group>"; };
 		21C052B8C300D5FCAEF84E27 /* ParmaInsightsCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParmaInsightsCalculator.swift; sourceTree = "<group>"; };
+		C8A41F2E7B6D4E9A8C1D0F3B /* InsightsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsStore.swift; sourceTree = "<group>"; };
 		22768068DF407CA3995EFE5E /* ParmaMasterUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ParmaMasterUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		24A124F0491E06A4D4A17E3C /* ParmaLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParmaLogView.swift; sourceTree = "<group>"; };
 		2B59DFE6728640854A750B30 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
@@ -169,6 +171,7 @@
 				C00C7B4A5573C340055BE1E1 /* AreaResolutionService.swift */,
 				0F246F525D2A6456B6A02899 /* BackupService.swift */,
 				5227DC10A178BA15B21E7E90 /* EntryRepository.swift */,
+				C8A41F2E7B6D4E9A8C1D0F3B /* InsightsStore.swift */,
 				2B59DFE6728640854A750B30 /* LocationService.swift */,
 				ADF1829E602E040FFA4A853D /* MapSearchService.swift */,
 				FFE7120B7CA31F923BE8B68C /* NotificationService.swift */,
@@ -538,6 +541,7 @@
 				3048E630B187173DA350D215 /* EntryCard.swift in Sources */,
 				ED8EBF051832CAC2267FBA89 /* EntryRepository.swift in Sources */,
 				D874D58DB473A4A99AD01964 /* HomeView.swift in Sources */,
+				D9B5203F8C7E5F0B9D2E1A4C /* InsightsStore.swift in Sources */,
 				FD6A5F5F0BBAB452615D48C5 /* InsightsView.swift in Sources */,
 				F65066F55302A368C0D9898B /* LocationPickerView.swift in Sources */,
 				FE49D193ACBCB5279FC62F56 /* LocationService.swift in Sources */,

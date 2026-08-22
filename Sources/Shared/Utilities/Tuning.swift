@@ -69,6 +69,22 @@ enum PhotoTuning {
     static let thumbnailPixelSize: CGFloat = 480
 }
 
+enum InsightsTuning {
+    /// The launch preload uses a fixed phone-sized canvas; the card requests an
+    /// exact-width replacement after SwiftUI supplies its real layout width.
+    static let preloadedMapWidth: CGFloat = 400
+    static let mapCardHeight: CGFloat = 280
+    /// Caps how many score labels the interactive map shows unclustered.
+    static let densePinThreshold = 50
+    /// Dots drawn onto the static Insights map snapshot.
+    static let snapshotPinLimit = 40
+    /// Maximum latitude/longitude span for the Insights map card. Fitting every
+    /// pin nationwide pulled a continent of MapKit tiles and froze first open.
+    static let maxCardSpan: CLLocationDegrees = 0.35
+    static let maxDisplayedStandouts = 8
+    static let maxDisplayedPerfectScores = 12
+}
+
 enum BackupTuning {
     /// Minimum interval between automatic backups.
     static let minimumAutomaticInterval: TimeInterval = 5 * 60

@@ -16,6 +16,7 @@ struct ParmaMasterApp: App {
     @State private var notificationService: NotificationService
     @State private var pubDetectionService: PubDetectionService
     @State private var rerunSuggestionService: RerunSuggestionService
+    @State private var insightsStore: InsightsStore
 
     init() {
         let store = ModelContainerState()
@@ -24,6 +25,7 @@ struct ParmaMasterApp: App {
         let repository = LocalParmaRepository()
         let locationService = LocationService()
         let pubDetectionService = PubDetectionService(notificationService: notificationService)
+        let insightsStore = InsightsStore()
 
         // Visit and geofence events can relaunch the app in the background and
         // are delivered as soon as the run loop turns — before any view's
@@ -35,6 +37,7 @@ struct ParmaMasterApp: App {
                 repository: repository,
                 locationService: locationService
             )
+            insightsStore.configure(container: container)
         }
         locationService.onLocationUpdate = { [weak pubDetectionService] location in
             Task { @MainActor in
@@ -61,17 +64,22 @@ struct ParmaMasterApp: App {
             }
         }
 
+        let backupService = BackupService()
         _store = State(initialValue: store)
         _settings = State(initialValue: settings)
         _homeGreetingSession = State(initialValue: HomeGreetingSession())
         _repository = State(initialValue: repository)
         _router = State(initialValue: AppRouter())
         _photoStore = State(initialValue: PhotoStore())
-        _backupService = State(initialValue: BackupService())
+        _backupService = State(initialValue: backupService)
         _locationService = State(initialValue: locationService)
         _notificationService = State(initialValue: notificationService)
         _pubDetectionService = State(initialValue: pubDetectionService)
         _rerunSuggestionService = State(initialValue: RerunSuggestionService())
+        _insightsStore = State(initialValue: insightsStore)
+
+        repository.dataDidChange = { insightsStore.invalidate() }
+        backupService.dataDidChange = { insightsStore.invalidate() }
     }
 
     var body: some Scene {
@@ -83,8 +91,18 @@ struct ParmaMasterApp: App {
                 } else {
                     StoreRecoveryView(
                         errorDescription: store.errorDescription,
-                        retry: { store.attempt() },
-                        reset: { store.resetStoreAndRetry() }
+                        retry: {
+                            store.attempt()
+                            if let container = store.container {
+                                insightsStore.configure(container: container)
+                            }
+                        },
+                        reset: {
+                            store.resetStoreAndRetry()
+                            if let container = store.container {
+                                insightsStore.configure(container: container)
+                            }
+                        }
                     )
                 }
             }
@@ -98,6 +116,7 @@ struct ParmaMasterApp: App {
             .environment(notificationService)
             .environment(pubDetectionService)
             .environment(rerunSuggestionService)
+            .environment(insightsStore)
             .tint(settings.accentColor)
             .preferredColorScheme(settings.theme.colorScheme)
         }

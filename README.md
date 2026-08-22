@@ -1,14 +1,15 @@
-# Parma Master 1.3.3
+# Parma Master 1.3.4
 
 A local-first iPhone app for rating, remembering, and discovering great parmas.
 
 Parma Master helps you keep a personal log of venues, rate each parma by its components, add notes and photos, and find places worth returning to. It is built natively for iPhone with SwiftUI and Apple frameworks.
 
-V1.3.3 adds control over how long Parma Master waits before reminding you
-about the place you are at, while retaining the V1.3.1 performance and battery
-improvements for large logs and background location handling. The app
-introduces no server, login, analytics, ads, CloudKit, or third-party runtime
-dependency.
+V1.3.4 makes Insights first-open stay responsive: the tab no longer builds a
+live MapKit map during load. V1.3.3 added control over how long Parma Master
+waits before reminding you about the place you are at, while retaining the
+V1.3.1 performance and battery improvements for large logs and background
+location handling. The app introduces no server, login, analytics, ads,
+CloudKit, or third-party runtime dependency.
 
 ## What you can do
 
@@ -39,6 +40,11 @@ dependency.
 - **Insights “At a glance”** rebalanced to six cards, including Areas visited
   and Parmas logged this year, with ratings submitted as subtext under Parmas
   logged.
+
+## V1.3.4 Insights load
+
+- **Insights no longer hangs on first open.** The tab shows statistics immediately and a static map snapshot generated off the main thread. An interactive clustered map opens only if you tap the map card.
+- Fitting every venue nationwide is capped so MapKit does not load a continent of tiles on first display.
 
 ## V1.3.3 Reminder timing
 
@@ -139,7 +145,7 @@ The data model keeps each venue as a canonical entry and stores rating revisions
 
 ## Verification
 
-V1.3.3 builds against the iOS 26 deployment target. Its reminder-timing
+V1.3.4 builds against the iOS 26 deployment target. Its reminder-timing
 coverage verifies the 30-minute default, the 10 / 20 / 30 / 45 / 60-minute
 presets, rejects unsupported persisted values, and confirms a detected venue
 does not show the Home prompt or fire a notification before the selected

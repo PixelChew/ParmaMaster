@@ -12,6 +12,24 @@ struct PhotoDiskIO: Sendable {
     nonisolated func data(for filename: String) -> Data? {
         try? Data(contentsOf: directoryURL.appending(path: filename))
     }
+
+    nonisolated func thumbnailImage(for filename: String, maxPixelSize: CGFloat) -> UIImage? {
+        let url = directoryURL.appending(path: filename)
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+        ]
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return nil
+        }
+        return UIImage(cgImage: thumbnail)
+    }
+
+    nonisolated func fullImage(for filename: String) -> UIImage? {
+        UIImage(contentsOfFile: directoryURL.appending(path: filename).path)
+    }
 }
 
 @MainActor
@@ -55,6 +73,14 @@ final class PhotoStore {
             try? delete(filename: oldFilename)
         }
         return filename
+    }
+
+    func cachedImage(for filename: String, thumbnail: Bool) -> UIImage? {
+        imageCache.object(forKey: thumbnail ? Self.thumbnailKey(for: filename) : filename as NSString)
+    }
+
+    func cacheImage(_ image: UIImage, filename: String, thumbnail: Bool) {
+        imageCache.setObject(image, forKey: thumbnail ? Self.thumbnailKey(for: filename) : filename as NSString)
     }
 
     func image(for filename: String?) -> UIImage? {
