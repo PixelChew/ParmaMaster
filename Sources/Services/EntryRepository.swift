@@ -16,6 +16,8 @@ protocol ParmaRepositoryProtocol: AnyObject {
 @MainActor
 @Observable
 final class LocalParmaRepository: ParmaRepositoryProtocol {
+    var dataDidChange: (() -> Void)?
+
     func findExisting(for venue: VenueCandidate, in entries: [ParmaEntry]) -> ParmaEntry? {
         entries.first { VenueIdentity.matches(venue, entry: $0) }
     }
@@ -92,7 +94,8 @@ final class LocalParmaRepository: ParmaRepositoryProtocol {
         )
         context.insert(entry)
         try context.save()
-        AreaResolutionService.scheduleResolveIfNeeded(venue, in: context)
+        AreaResolutionService.scheduleResolveIfNeeded(venue, in: context, onChange: dataDidChange)
+        dataDidChange?()
         return entry
     }
 
@@ -139,7 +142,8 @@ final class LocalParmaRepository: ParmaRepositoryProtocol {
         entry.photoFilename = photoFilename
         entry.lastModifiedAt = .now
         try context.save()
-        AreaResolutionService.scheduleResolveIfNeeded(currentVenue, in: context)
+        AreaResolutionService.scheduleResolveIfNeeded(currentVenue, in: context, onChange: dataDidChange)
+        dataDidChange?()
     }
 
     func delete(_ entry: ParmaEntry, photoStore: PhotoStore, in context: ModelContext) throws {
@@ -152,6 +156,7 @@ final class LocalParmaRepository: ParmaRepositoryProtocol {
             context.delete(venue)
             try context.save()
         }
+        dataDidChange?()
     }
 
     func reset(photoStore: PhotoStore, in context: ModelContext) throws {
@@ -165,6 +170,7 @@ final class LocalParmaRepository: ParmaRepositoryProtocol {
         for venue in venues { context.delete(venue) }
         try context.save()
         try photoStore.removeAll()
+        dataDidChange?()
     }
 }
 

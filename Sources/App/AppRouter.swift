@@ -30,8 +30,8 @@ final class AppRouter {
     var selectedTab = AppTab.home
     var loggerRequest: LoggerRequest?
     var presentedDetails: ParmaEntry?
-    /// Root-level Areas sheet. Prefer this over Insights-local presentation so Home
-    /// deep links get a system sheet animation (TabView selection itself does not animate).
+    /// Root-level Areas sheet so Home (and Insights) get a system sheet animation
+    /// without forcing the Insights tab — and its Map — to mount underneath.
     var showingAreasList = false
 
     func selectTab(_ tab: AppTab) {
@@ -39,7 +39,6 @@ final class AppRouter {
     }
 
     func showAreasList() {
-        selectedTab = .insights
         showingAreasList = true
     }
 

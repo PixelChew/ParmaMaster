@@ -1,7 +1,7 @@
 import SwiftData
 import SwiftUI
 
-struct AreaSummary: Identifiable, Hashable {
+struct AreaSummary: Identifiable, Hashable, Sendable {
     let name: String
     let venueCount: Int
     let logCount: Int
@@ -18,7 +18,7 @@ enum AreaSortField: String, CaseIterable, Identifiable {
 }
 
 enum AreaAggregator {
-    static func areas(from entries: [ParmaEntry]) -> [AreaSummary] {
+    static func areas(from records: [InsightsEntryRecord]) -> [AreaSummary] {
         struct Bucket {
             var displayName: String
             var venueIDs: Set<UUID> = []
@@ -27,17 +27,15 @@ enum AreaAggregator {
         }
 
         var buckets: [String: Bucket] = [:]
-        for entry in entries {
-            guard let locality = AreaNameResolver.cleaned(entry.venue?.locality) else { continue }
+        for record in records {
+            guard let locality = AreaNameResolver.cleaned(record.locality) else { continue }
             let key = AreaNameResolver.normalisedKey(locality)
 
             var bucket = buckets[key] ?? Bucket(displayName: locality)
-            if let venueID = entry.venue?.id {
-                bucket.venueIDs.insert(venueID)
-            }
+            bucket.venueIDs.insert(record.venueID)
             bucket.logCount += 1
-            if entry.currentRatingDate > bucket.mostRecentLog {
-                bucket.mostRecentLog = entry.currentRatingDate
+            if record.currentRatingDate > bucket.mostRecentLog {
+                bucket.mostRecentLog = record.currentRatingDate
             }
             buckets[key] = bucket
         }
@@ -78,6 +76,16 @@ enum AreaAggregator {
             return direction == .ascending ? comparison == .orderedAscending : comparison == .orderedDescending
         }
     }
+
+    static func records(in areaName: String, from records: [InsightsEntryRecord]) -> [InsightsEntryRecord] {
+        let key = AreaNameResolver.normalisedKey(areaName)
+        return records
+            .filter { record in
+                guard let locality = AreaNameResolver.cleaned(record.locality) else { return false }
+                return AreaNameResolver.normalisedKey(locality) == key
+            }
+            .sorted { $0.currentRatingDate > $1.currentRatingDate }
+    }
 }
 
 private struct AreaSortMenu: View {
@@ -110,19 +118,21 @@ private struct AreaSortMenu: View {
 
 struct AreasListView: View {
     @Environment(\.dismiss) private var dismiss
-    @Query private var entries: [ParmaEntry]
+    @Environment(InsightsStore.self) private var insightsStore
     @State private var query = ""
     @State private var sortField = AreaSortField.name
     @State private var sortDirection = SortDirection.ascending
     @State private var selectedArea: AreaSummary?
 
     var body: some View {
-        // Aggregated once per render; the empty check and search filter share it (audit per-surface note).
-        let allAreas = AreaAggregator.areas(from: entries)
+        let allAreas = insightsStore.snapshot?.areas ?? []
         let filteredAreas = filtered(allAreas)
         NavigationStack {
             Group {
-                if allAreas.isEmpty {
+                if insightsStore.snapshot == nil {
+                    ProgressView("Loading areas…")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if allAreas.isEmpty {
                     EmptyStateView(
                         title: "No areas yet",
                         systemImage: "mappin.and.ellipse",
@@ -184,6 +194,9 @@ struct AreasListView: View {
             .sheet(item: $selectedArea) { area in
                 AreaEntriesView(areaName: area.name)
             }
+            .task {
+                await insightsStore.refresh()
+            }
         }
     }
 
@@ -204,21 +217,18 @@ struct AreasListView: View {
     }
 }
 
-/// Slide-up list of entries logged within a single area. Tapping an entry pushes
-/// the standard Parma details screen.
 private struct AreaEntriesView: View {
     let areaName: String
     @Environment(\.dismiss) private var dismiss
-    @Query private var entries: [ParmaEntry]
+    @Environment(InsightsStore.self) private var insightsStore
+    @Environment(\.modelContext) private var modelContext
+    @Environment(AppRouter.self) private var router
 
     var body: some View {
-        // Filtered and sorted once per render (audit per-surface note).
-        let areaEntries = entries
-            .filter { entry in
-                guard let locality = AreaNameResolver.cleaned(entry.venue?.locality) else { return false }
-                return AreaNameResolver.normalisedKey(locality) == AreaNameResolver.normalisedKey(areaName)
-            }
-            .sorted { $0.currentRatingDate > $1.currentRatingDate }
+        let areaEntries = AreaAggregator.records(
+            in: areaName,
+            from: insightsStore.snapshot?.insights.entries ?? []
+        )
         NavigationStack {
             Group {
                 if areaEntries.isEmpty {
@@ -228,11 +238,11 @@ private struct AreaEntriesView: View {
                         message: "Entries in \(areaName) will appear here."
                     )
                 } else {
-                    List(areaEntries) { entry in
-                        NavigationLink {
-                            ParmaDetailsView(entry: entry)
+                    List(areaEntries) { record in
+                        Button {
+                            present(record)
                         } label: {
-                            EntryCard(entry: entry)
+                            InsightEntryRow(record: record)
                         }
                         .buttonStyle(.plain)
                         .listRowBackground(Color.clear)
@@ -250,6 +260,15 @@ private struct AreaEntriesView: View {
                     Button("Done") { dismiss() }
                 }
             }
+        }
+    }
+
+    private func present(_ record: InsightsEntryRecord) {
+        let id = record.id
+        var descriptor = FetchDescriptor<ParmaEntry>(predicate: #Predicate { $0.id == id })
+        descriptor.fetchLimit = 1
+        if let entry = try? modelContext.fetch(descriptor).first {
+            router.presentDetails(entry)
         }
     }
 }

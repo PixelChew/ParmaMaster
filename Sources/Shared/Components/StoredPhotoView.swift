@@ -6,15 +6,12 @@ struct StoredPhotoView: View {
     /// Renders a downsampled image for list rows and cards (audit P-05).
     var useThumbnail = false
     @Environment(PhotoStore.self) private var photoStore
-
-    private var loadedImage: UIImage? {
-        useThumbnail ? photoStore.thumbnail(for: filename) : photoStore.image(for: filename)
-    }
+    @State private var image: UIImage?
 
     var body: some View {
         Color(.tertiarySystemFill)
             .overlay {
-                if let image = loadedImage {
+                if let image {
                     AspectFillImage(image: image)
                 } else {
                     VStack(spacing: 8) {
@@ -29,5 +26,31 @@ struct StoredPhotoView: View {
             .clipped()
             .clipShape(.rect(cornerRadius: BrandStyle.cardRadius))
             .accessibilityLabel(filename == nil ? "No Parma photo" : "Parma photo")
+            .task(id: "\(filename ?? "")-\(useThumbnail)") {
+                await loadImage()
+            }
+    }
+
+    @MainActor
+    private func loadImage() async {
+        guard let filename else {
+            image = nil
+            return
+        }
+        if let cached = photoStore.cachedImage(for: filename, thumbnail: useThumbnail) {
+            image = cached
+            return
+        }
+        let disk = photoStore.diskIO
+        let loadThumbnail = useThumbnail
+        let loaded = await Task.detached(priority: .utility) {
+            if loadThumbnail {
+                return disk.thumbnailImage(for: filename, maxPixelSize: PhotoTuning.thumbnailPixelSize)
+            }
+            return disk.fullImage(for: filename)
+        }.value
+        guard let loaded else { return }
+        photoStore.cacheImage(loaded, filename: filename, thumbnail: useThumbnail)
+        image = loaded
     }
 }

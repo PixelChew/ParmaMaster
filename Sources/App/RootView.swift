@@ -11,6 +11,7 @@ struct RootView: View {
     @Environment(LocationService.self) private var locationService
     @Environment(NotificationService.self) private var notificationService
     @Environment(PubDetectionService.self) private var pubDetection
+    @Environment(InsightsStore.self) private var insightsStore
 
     var body: some View {
         @Bindable var router = router
@@ -39,10 +40,19 @@ struct RootView: View {
             // background relaunch events are never dropped; this task handles
             // the parts that need the environment's model context and scene.
             backupService.configure(context: modelContext, settings: settings, photoStore: photoStore)
+            async let insightsPreload: Void = insightsStore.refresh(force: true)
             await notificationService.refreshStatus()
             applyLocationPlan(sceneIsActive: scenePhase == .active)
             consumePendingDeepLink()
-            await AreaResolutionService.backfillMissingLocalities(in: modelContext)
+            let localitiesChanged = await AreaResolutionService.backfillMissingLocalities(in: modelContext)
+            await insightsPreload
+            if localitiesChanged {
+                await insightsStore.refresh(force: true)
+            }
+            await insightsStore.preloadMapImage(
+                colorScheme: settings.theme.colorScheme,
+                accent: UIColor(settings.accentColor)
+            )
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
@@ -127,7 +137,6 @@ private struct MainTabView: View {
     @Environment(AppRouter.self) private var router
     @State private var homeRootID = UUID()
     @State private var logRootID = UUID()
-    @State private var insightsRootID = UUID()
     @State private var settingsRootID = UUID()
     @State private var searchRootID = UUID()
 
@@ -145,9 +154,9 @@ private struct MainTabView: View {
                     .modifier(TabEntranceEffect())
             }
             Tab("Insights", systemImage: "chart.bar.xaxis", value: .insights) {
+                // No TabEntranceEffect and no remount: animating or recreating
+                // MapKit on first insert is what froze the tab after a cold start.
                 InsightsView()
-                    .id(insightsRootID)
-                    .modifier(TabEntranceEffect())
             }
             Tab("Settings", systemImage: "gear", value: .settings) {
                 SettingsView()
@@ -174,7 +183,7 @@ private struct MainTabView: View {
                 switch previousTab {
                 case .home: homeRootID = UUID()
                 case .log: logRootID = UUID()
-                case .insights: insightsRootID = UUID()
+                case .insights: break
                 case .settings: settingsRootID = UUID()
                 case .search: searchRootID = UUID()
                 }

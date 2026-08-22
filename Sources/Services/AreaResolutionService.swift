@@ -15,20 +15,31 @@ enum AreaResolutionService {
     private static var skippedNetworkIDs = Set<UUID>()
 
     /// Best-effort fire-and-forget resolve after create/update. Does not block the caller.
-    static func scheduleResolveIfNeeded(_ venue: Venue?, in context: ModelContext) {
+    static func scheduleResolveIfNeeded(
+        _ venue: Venue?,
+        in context: ModelContext,
+        onChange: (() -> Void)? = nil
+    ) {
         guard let venue else { return }
-        Task { await resolveIfNeeded(venue, in: context) }
+        Task {
+            if await resolveIfNeeded(venue, in: context) {
+                onChange?()
+            }
+        }
     }
 
     /// Resolves locality for a single venue when missing. Failures leave `locality` nil.
-    static func resolveIfNeeded(_ venue: Venue, in context: ModelContext) async {
-        guard let name = await resolvedAreaName(for: venue) else { return }
-        guard needsResolution(venue) else { return }
+    @discardableResult
+    static func resolveIfNeeded(_ venue: Venue, in context: ModelContext) async -> Bool {
+        guard let name = await resolvedAreaName(for: venue) else { return false }
+        guard needsResolution(venue) else { return false }
         venue.locality = name
         do {
             try context.save()
+            return true
         } catch {
             AppLog.data.error("Locality save failed: \(error.localizedDescription, privacy: .public)")
+            return false
         }
     }
 
@@ -46,14 +57,16 @@ enum AreaResolutionService {
     /// 1. Offline pass: parse every stored address and save once (no count flicker).
     /// 2. Online pass: reverse-geocode a bounded batch of remaining venues,
     ///    skipping IDs that already failed this launch so the queue advances.
-    static func backfillMissingLocalities(in context: ModelContext) async {
+    @discardableResult
+    static func backfillMissingLocalities(in context: ModelContext) async -> Bool {
         let venues: [Venue]
         do {
             venues = try context.fetch(FetchDescriptor<Venue>())
         } catch {
             AppLog.data.error("Locality backfill fetch failed: \(error.localizedDescription, privacy: .public)")
-            return
+            return false
         }
+        var changed = false
 
         // 1. Offline address parse — unbounded, no network, single save.
         var parsed: [(Venue, String)] = []
@@ -68,6 +81,7 @@ enum AreaResolutionService {
             }
             do {
                 try context.save()
+                changed = true
             } catch {
                 AppLog.data.error("Locality offline backfill save failed: \(error.localizedDescription, privacy: .public)")
             }
@@ -81,20 +95,20 @@ enum AreaResolutionService {
         )
         probe.fetchLimit = 1
         do {
-            if try context.fetch(probe).isEmpty { return }
+            if try context.fetch(probe).isEmpty { return changed }
         } catch {
             AppLog.data.error("Locality backfill probe failed: \(error.localizedDescription, privacy: .public)")
-            return
+            return changed
         }
 
-        guard await isNetworkSatisfied() else { return }
+        guard await isNetworkSatisfied() else { return changed }
 
         let remaining: [Venue]
         do {
             remaining = try context.fetch(FetchDescriptor<Venue>())
         } catch {
             AppLog.data.error("Locality backfill refetch failed: \(error.localizedDescription, privacy: .public)")
-            return
+            return changed
         }
 
         let pending = remaining
@@ -104,7 +118,7 @@ enum AreaResolutionService {
                     && !skippedNetworkIDs.contains($0.id)
             }
             .prefix(AreaResolutionTuning.backfillBatchLimit)
-        guard !pending.isEmpty else { return }
+        guard !pending.isEmpty else { return changed }
 
         var resolved: [(Venue, String)] = []
         for venue in pending {
@@ -116,15 +130,17 @@ enum AreaResolutionService {
             try? await Task.sleep(nanoseconds: AreaResolutionTuning.backfillSpacingNanoseconds)
         }
 
-        guard !resolved.isEmpty else { return }
+        guard !resolved.isEmpty else { return changed }
         for (venue, name) in resolved where needsResolution(venue) {
             venue.locality = name
         }
         do {
             try context.save()
+            changed = true
         } catch {
             AppLog.data.error("Locality backfill save failed: \(error.localizedDescription, privacy: .public)")
         }
+        return changed
     }
 
     // MARK: - Internals
