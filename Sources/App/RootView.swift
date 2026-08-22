@@ -57,11 +57,13 @@ struct RootView: View {
                 break
             }
         }
-        .onChange(of: settings.locationUseEnabled) { _, _ in
+        .onChange(of: settings.locationUseEnabled) { _, enabled in
             applyLocationPlan(sceneIsActive: scenePhase == .active)
+            if !enabled { pubDetection.clearVisitState() }
         }
-        .onChange(of: settings.locationRemindersEnabled) { _, _ in
+        .onChange(of: settings.locationRemindersEnabled) { _, enabled in
             applyLocationPlan(sceneIsActive: scenePhase == .active)
+            if !enabled { pubDetection.cancelPendingReminder() }
         }
         .onChange(of: locationService.authorizationStatus) { _, _ in
             applyLocationPlan(sceneIsActive: scenePhase == .active)

@@ -8,7 +8,8 @@ import UIKit
 @MainActor
 protocol VisitNotifying: AnyObject {
     var authorizationStatus: UNAuthorizationStatus { get }
-    func scheduleVisitReminder(venue: VenueCandidate, existingEntry: ParmaEntry?) async throws
+    func scheduleVisitReminder(venue: VenueCandidate, existingEntry: ParmaEntry?, after delay: TimeInterval) async throws
+    func cancelVisitReminder(forVenueID venueID: String)
 }
 
 @MainActor
@@ -32,7 +33,7 @@ final class NotificationService: VisitNotifying {
         }
     }
 
-    func scheduleVisitReminder(venue: VenueCandidate, existingEntry: ParmaEntry?) async throws {
+    func scheduleVisitReminder(venue: VenueCandidate, existingEntry: ParmaEntry?, after delay: TimeInterval) async throws {
         let content = UNMutableNotificationContent()
         content.title = "Parma Master"
         if let existingEntry {
@@ -45,8 +46,31 @@ final class NotificationService: VisitNotifying {
             ]
         }
         content.sound = .default
-        let request = UNNotificationRequest(identifier: "visit-\(venue.id)", content: content, trigger: nil)
+        // A delayed trigger is required for background visit/geofence arrivals:
+        // the app suspends after the event, so an immediate request would fire
+        // before the user has stayed for the chosen window.
+        let trigger: UNNotificationTrigger?
+        if delay > 0 {
+            trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(delay, 1), repeats: false)
+        } else {
+            trigger = nil
+        }
+        let request = UNNotificationRequest(
+            identifier: Self.reminderIdentifier(forVenueID: venue.id),
+            content: content,
+            trigger: trigger
+        )
         try await center.add(request)
+    }
+
+    func cancelVisitReminder(forVenueID venueID: String) {
+        let identifier = Self.reminderIdentifier(forVenueID: venueID)
+        center.removePendingNotificationRequests(withIdentifiers: [identifier])
+        center.removeDeliveredNotifications(withIdentifiers: [identifier])
+    }
+
+    private static func reminderIdentifier(forVenueID venueID: String) -> String {
+        "visit-\(venueID)"
     }
 }
 

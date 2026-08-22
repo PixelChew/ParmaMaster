@@ -41,9 +41,13 @@ struct ParmaMasterApp: App {
                 await pubDetectionService?.process(location: location)
             }
         }
-        locationService.onVisitEvent = { [weak pubDetectionService] coordinate, isArrival in
+        locationService.onVisitEvent = { [weak pubDetectionService] coordinate, isArrival, arrivalDate in
             Task { @MainActor in
-                await pubDetectionService?.processVisit(coordinate: coordinate, isArrival: isArrival)
+                await pubDetectionService?.processVisit(
+                    coordinate: coordinate,
+                    isArrival: isArrival,
+                    arrivalDate: arrivalDate
+                )
             }
         }
         locationService.onKnownVenueEntry = { [weak pubDetectionService] venueID in

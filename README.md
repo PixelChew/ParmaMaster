@@ -1,14 +1,14 @@
-# Parma Master 1.3.1
+# Parma Master 1.3.3
 
 A local-first iPhone app for rating, remembering, and discovering great parmas.
 
 Parma Master helps you keep a personal log of venues, rate each parma by its components, add notes and photos, and find places worth returning to. It is built natively for iPhone with SwiftUI and Apple frameworks.
 
-V1.3.1 Performance & Battery dramatically cuts background battery use and
-keeps the app fast on large logs, building on the V1.3 Home Refresh (Home
-stats, area tracking, and configurable re-run suggestions) and the Insights
-map and analytics introduced in V1.2. The app introduces no server, login,
-analytics, ads, CloudKit, or third-party runtime dependency.
+V1.3.3 adds control over how long Parma Master waits before reminding you
+about the place you are at, while retaining the V1.3.1 performance and battery
+improvements for large logs and background location handling. The app
+introduces no server, login, analytics, ads, CloudKit, or third-party runtime
+dependency.
 
 ## What you can do
 
@@ -17,7 +17,7 @@ analytics, ads, CloudKit, or third-party runtime dependency.
 - Save notes, photos, and the full history of rating changes.
 - Browse your Parma Log, sort by rating or recency, and search venues, addresses, and notes.
 - Get returning-venue and new-venue suggestions based on your configured location behaviour.
-- Receive optional local reminders when you are near a venue worth logging.
+- Receive optional local reminders after staying at a venue for your chosen duration.
 - Edit entries, re-rate venues, manage duplicates, and delete entries with confirmation.
 - Back up and restore entries, rating history, notes, settings, and photos through a user-selected Files folder.
 - Personalise the appearance and scoring behaviour to match how you judge a great parma.
@@ -39,6 +39,13 @@ analytics, ads, CloudKit, or third-party runtime dependency.
 - **Insights “At a glance”** rebalanced to six cards, including Areas visited
   and Parmas logged this year, with ratings submitted as subtext under Parmas
   logged.
+
+## V1.3.3 Reminder timing
+
+- **Choose when a location reminder arrives.** Set the time Parma Master waits
+  before it reminds you about a detected venue: 10 minutes, 20 minutes,
+  30 minutes, 45 minutes, or 1 hour. The default is 30 minutes. Turn
+  Location-Based Reminders off to disable automatic prompts entirely.
 
 ## V1.3.1 Performance & Battery
 
@@ -132,14 +139,16 @@ The data model keeps each venue as a canonical entry and stores rating revisions
 
 ## Verification
 
-The current V1.3.1 branch builds against the iOS 26 deployment target and
-passes the full iOS Simulator suite, including the new pub-detection
-state-machine coverage (dwell, throttle, departure, cooldowns, and geofence
-arrivals) and the new backup-roundtrip coverage (backup, wipe, and restore
-including photos), alongside V1→V3 migration, backup compatibility, re-run
-suggestion policy, Insights normalisation, tie handling, perfect-score
-detection, component averages, areas aggregation, zero-entry behaviour, and
-the Insights tab empty-state UI flow.
+V1.3.3 builds against the iOS 26 deployment target. Its reminder-timing
+coverage verifies the 30-minute default, the 10 / 20 / 30 / 45 / 60-minute
+presets, rejects unsupported persisted values, and confirms a detected venue
+does not show the Home prompt or fire a notification before the selected
+dwell duration — including visit and geofence arrivals. The wider
+pub-detection state-machine coverage continues to cover dwell, throttle,
+departure, cooldowns, and geofence arrivals, alongside V1→V3 migration,
+backup compatibility, re-run suggestion policy, Insights normalisation, tie
+handling, perfect-score detection, component averages, areas aggregation,
+zero-entry behaviour, and the Insights tab empty-state UI flow.
 
 ## Permissions
 

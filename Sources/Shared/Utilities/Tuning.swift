@@ -23,8 +23,6 @@ enum LocationTuning {
 enum DetectionTuning {
     /// Minimum interval between venue search fan-outs.
     static let searchThrottle: TimeInterval = 15 * 60
-    /// Time within the anchor radius before a foreground dwell is declared.
-    static let dwellDuration: TimeInterval = 8 * 60
     /// Distance from the visit venue that starts the departure countdown.
     static let departureDistance: CLLocationDistance = 250
     /// Time beyond `departureDistance` before the visit is considered over.

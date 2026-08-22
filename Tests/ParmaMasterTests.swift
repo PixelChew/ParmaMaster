@@ -120,9 +120,29 @@ final class ParmaMasterTests: XCTestCase {
         XCTAssertEqual(snapshot.accentHex, "#112233")
         XCTAssertFalse(snapshot.photoFeatureEnabled)
         XCTAssertTrue(snapshot.locationUseEnabled)
+        XCTAssertEqual(snapshot.locationReminderDelayMinutes, 30)
         XCTAssertTrue(snapshot.rerunSuggestionsEnabled)
         XCTAssertEqual(snapshot.rerunStaleMonths, 5)
         XCTAssertEqual(snapshot.rerunHideMonths, 1)
+    }
+
+    func testAppSettingsSnapshotUsesDefaultReminderDelayForUnsupportedValues() throws {
+        for unsupported in [5, 15, 25] {
+            let json = """
+            { "locationReminderDelayMinutes": \(unsupported) }
+            """.data(using: .utf8)!
+
+            let snapshot = try JSONDecoder().decode(AppSettingsSnapshot.self, from: json)
+
+            XCTAssertEqual(snapshot.locationReminderDelayMinutes, 30, "Unsupported delay \(unsupported) should fall back to 30")
+        }
+    }
+
+    func testLocationReminderDelayPresetsMatchTheSupportedWindows() {
+        XCTAssertEqual(LocationReminderDelay.allCases.map(\.rawValue), [10, 20, 30, 45, 60])
+        XCTAssertEqual(LocationReminderDelay.defaultValue, .thirty)
+        XCTAssertEqual(LocationReminderDelay.sixty.displayName, "1 hour")
+        XCTAssertEqual(LocationReminderDelay.ten.displayName, "10 minutes")
     }
 
     func testVenueBackupRoundtripPreservesLocalityAndExclusion() throws {

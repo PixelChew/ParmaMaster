@@ -49,8 +49,9 @@ final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate
     var lastErrorMessage: String?
 
     @ObservationIgnored var onLocationUpdate: ((CLLocation) -> Void)?
-    /// Coordinate of the visit and whether it is an arrival (`true`) or departure.
-    @ObservationIgnored var onVisitEvent: ((CLLocationCoordinate2D, Bool) -> Void)?
+    /// Coordinate, whether it is an arrival (`true`) or departure, and the
+    /// visit's `arrivalDate` (`.distantPast` when Core Location does not know).
+    @ObservationIgnored var onVisitEvent: ((CLLocationCoordinate2D, Bool, Date) -> Void)?
     @ObservationIgnored var onKnownVenueEntry: ((UUID) -> Void)?
     @ObservationIgnored var onKnownVenueExit: ((UUID) -> Void)?
 
@@ -260,7 +261,7 @@ final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate
     func locationManager(_ manager: CLLocationManager, didVisit visit: CLVisit) {
         let isArrival = visit.departureDate == .distantFuture
         AppLog.location.info("Visit event received, arrival: \(isArrival)")
-        onVisitEvent?(visit.coordinate, isArrival)
+        onVisitEvent?(visit.coordinate, isArrival, visit.arrivalDate)
     }
 
     func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {

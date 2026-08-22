@@ -22,7 +22,7 @@ final class PubDetectionServiceTests: XCTestCase {
         await harness.service.process(location: harness.userLocation())
         XCTAssertEqual(harness.mapSearch.searchCount, 0)
 
-        harness.clock.advance(by: DetectionTuning.dwellDuration + 30)
+        harness.clock.advance(by: TimeInterval(harness.settings.locationReminderDelayMinutes * 60) + 30)
         await harness.service.process(location: harness.userLocation())
 
         XCTAssertEqual(harness.mapSearch.searchCount, 1)
@@ -42,7 +42,7 @@ final class PubDetectionServiceTests: XCTestCase {
         XCTAssertNil(harness.service.currentCandidate)
     }
 
-    func testForegroundCheckBypassesTheDwellRequirement() async throws {
+    func testForegroundCheckIdentifiesTheVenueWithoutSurfacingThePrompt() async throws {
         let harness = try makeHarness()
         defer { harness.cleanUp() }
         harness.mapSearch.results = [pubCandidate(named: "Foreground Hotel")]
@@ -50,7 +50,27 @@ final class PubDetectionServiceTests: XCTestCase {
         await harness.service.process(location: harness.userLocation(), foregroundCheck: true)
 
         XCTAssertEqual(harness.mapSearch.searchCount, 1)
-        XCTAssertEqual(harness.service.currentCandidate?.name, "Foreground Hotel")
+        XCTAssertNil(harness.service.currentCandidate)
+        XCTAssertEqual(harness.notifier.scheduled.count, 1)
+        XCTAssertEqual(harness.notifier.scheduled.first?.delay, harness.reminderDelay)
+    }
+
+    func testConfiguredDwellDurationDelaysTheHomeCardAndReminder() async throws {
+        let harness = try makeHarness()
+        defer { harness.cleanUp() }
+        harness.settings.locationReminderDelayMinutes = 10
+        harness.mapSearch.results = [pubCandidate(named: "Delay Hotel")]
+
+        await harness.service.process(location: harness.userLocation(), foregroundCheck: true)
+        XCTAssertNil(harness.service.currentCandidate)
+        XCTAssertEqual(harness.notifier.scheduled.count, 1)
+        XCTAssertEqual(harness.notifier.scheduled.first?.delay, 10 * 60)
+
+        harness.clock.advance(by: 10 * 60 + 1)
+        await harness.service.process(location: harness.userLocation())
+
+        XCTAssertEqual(harness.service.currentCandidate?.name, "Delay Hotel")
+        XCTAssertEqual(harness.notifier.scheduled.count, 1)
     }
 
     // MARK: - Search throttle
@@ -95,7 +115,7 @@ final class PubDetectionServiceTests: XCTestCase {
         harness.mapSearch.results = [pubCandidate(named: "Settled Hotel")]
 
         await harness.service.process(location: harness.userLocation())
-        harness.clock.advance(by: DetectionTuning.dwellDuration + 30)
+        harness.clock.advance(by: TimeInterval(harness.settings.locationReminderDelayMinutes * 60) + 30)
         await harness.service.process(location: harness.userLocation())
         XCTAssertEqual(harness.mapSearch.searchCount, 1)
         XCTAssertEqual(harness.notifier.scheduled.count, 1)
@@ -116,6 +136,8 @@ final class PubDetectionServiceTests: XCTestCase {
         harness.mapSearch.results = [pubCandidate(named: "Departure Hotel")]
 
         await harness.service.process(location: harness.userLocation(), foregroundCheck: true)
+        harness.clock.advance(by: harness.reminderDelay + 1)
+        await harness.service.process(location: harness.userLocation())
         XCTAssertNotNil(harness.service.currentCandidate)
 
         harness.clock.advance(by: 60)
@@ -138,6 +160,11 @@ final class PubDetectionServiceTests: XCTestCase {
         await harness.service.process(location: harness.userLocation(), foregroundCheck: true)
         XCTAssertEqual(harness.mapSearch.searchCount, 1)
         XCTAssertEqual(harness.notifier.scheduled.count, 1)
+        XCTAssertNil(harness.service.currentCandidate)
+
+        harness.clock.advance(by: harness.reminderDelay + 1)
+        await harness.service.process(location: harness.userLocation())
+        XCTAssertEqual(harness.service.currentCandidate?.name, "Relaunch Hotel")
 
         let relaunched = harness.makeRelaunchedService()
         await relaunched.processVisit(
@@ -156,6 +183,8 @@ final class PubDetectionServiceTests: XCTestCase {
         harness.mapSearch.results = [pubCandidate(named: "Cooldown Hotel")]
 
         await harness.service.process(location: harness.userLocation(), foregroundCheck: true)
+        harness.clock.advance(by: harness.reminderDelay + 1)
+        await harness.service.process(location: harness.userLocation())
         XCTAssertEqual(harness.mapSearch.searchCount, 1)
         XCTAssertEqual(harness.notifier.scheduled.count, 1)
 
@@ -163,7 +192,7 @@ final class PubDetectionServiceTests: XCTestCase {
         harness.clock.advance(by: 60 * 60)
 
         await harness.service.process(location: harness.userLocation())
-        harness.clock.advance(by: DetectionTuning.dwellDuration + 30)
+        harness.clock.advance(by: harness.reminderDelay + 30)
         await harness.service.process(location: harness.userLocation())
 
         XCTAssertEqual(harness.mapSearch.searchCount, 2)
@@ -188,10 +217,17 @@ final class PubDetectionServiceTests: XCTestCase {
 
         await harness.service.processKnownVenueArrival(venueID: venueID)
 
-        XCTAssertNotNil(harness.service.currentCandidate)
+        XCTAssertNil(harness.service.currentCandidate)
         XCTAssertEqual(harness.notifier.scheduled.count, 1)
+        XCTAssertEqual(harness.notifier.scheduled.first?.delay, harness.reminderDelay)
         XCTAssertNotNil(harness.notifier.scheduled.first?.existing)
         XCTAssertEqual(harness.mapSearch.searchCount, 0)
+
+        harness.clock.advance(by: harness.reminderDelay + 1)
+        await harness.service.process(location: harness.userLocation())
+
+        XCTAssertEqual(harness.service.currentCandidate?.name, "Known Hotel")
+        XCTAssertEqual(harness.notifier.scheduled.count, 1)
     }
 
     // MARK: - Skipping
@@ -202,11 +238,13 @@ final class PubDetectionServiceTests: XCTestCase {
         harness.mapSearch.results = [pubCandidate(named: "Skip Hotel")]
 
         await harness.service.process(location: harness.userLocation(), foregroundCheck: true)
-        XCTAssertNotNil(harness.service.currentCandidate)
+        let scheduledVenueID = try XCTUnwrap(harness.notifier.scheduled.first?.venue.id)
+        XCTAssertNil(harness.service.currentCandidate)
         XCTAssertEqual(harness.notifier.scheduled.count, 1)
 
         harness.service.skipCurrentVisit()
         XCTAssertNil(harness.service.currentCandidate)
+        XCTAssertEqual(harness.notifier.cancelled, [scheduledVenueID])
 
         harness.clock.advance(by: DetectionTuning.searchThrottle + 60)
         await harness.service.process(location: harness.userLocation())
@@ -214,6 +252,73 @@ final class PubDetectionServiceTests: XCTestCase {
         XCTAssertNil(harness.service.currentCandidate)
         XCTAssertEqual(harness.mapSearch.searchCount, 1)
         XCTAssertEqual(harness.notifier.scheduled.count, 1)
+    }
+
+    func testVisitArrivalWaitsForTheRemainingConfiguredDelay() async throws {
+        let harness = try makeHarness()
+        defer { harness.cleanUp() }
+        harness.mapSearch.results = [pubCandidate(named: "Visit Hotel")]
+
+        let arrival = harness.clock.date.addingTimeInterval(-10 * 60)
+        await harness.service.processVisit(
+            coordinate: CLLocationCoordinate2D(latitude: baseLatitude, longitude: baseLongitude),
+            isArrival: true,
+            arrivalDate: arrival
+        )
+
+        XCTAssertEqual(harness.mapSearch.searchCount, 1)
+        XCTAssertNil(harness.service.currentCandidate)
+        XCTAssertEqual(harness.notifier.scheduled.count, 1)
+        XCTAssertEqual(harness.notifier.scheduled.first?.delay, 20 * 60)
+    }
+
+    func testVisitArrivalSurfacesImmediatelyWhenTheDelayHasAlreadyElapsed() async throws {
+        let harness = try makeHarness()
+        defer { harness.cleanUp() }
+        harness.mapSearch.results = [pubCandidate(named: "Late Visit Hotel")]
+
+        let arrival = harness.clock.date.addingTimeInterval(-harness.reminderDelay - 60)
+        await harness.service.processVisit(
+            coordinate: CLLocationCoordinate2D(latitude: baseLatitude, longitude: baseLongitude),
+            isArrival: true,
+            arrivalDate: arrival
+        )
+
+        XCTAssertEqual(harness.service.currentCandidate?.name, "Late Visit Hotel")
+        XCTAssertEqual(harness.notifier.scheduled.count, 1)
+        XCTAssertEqual(harness.notifier.scheduled.first?.delay, 0)
+    }
+
+    func testDepartureCancelsAPendingReminder() async throws {
+        let harness = try makeHarness()
+        defer { harness.cleanUp() }
+        harness.mapSearch.results = [pubCandidate(named: "Cancel Hotel")]
+
+        await harness.service.process(location: harness.userLocation(), foregroundCheck: true)
+        let scheduledVenueID = try XCTUnwrap(harness.notifier.scheduled.first?.venue.id)
+        XCTAssertEqual(harness.notifier.scheduled.count, 1)
+
+        await harness.service.processVisit(
+            coordinate: CLLocationCoordinate2D(latitude: baseLatitude, longitude: baseLongitude),
+            isArrival: false
+        )
+
+        XCTAssertNil(harness.service.currentCandidate)
+        XCTAssertEqual(harness.notifier.cancelled, [scheduledVenueID])
+    }
+
+    func testRemindersDisabledDoesNotScheduleANotification() async throws {
+        let harness = try makeHarness()
+        defer { harness.cleanUp() }
+        harness.settings.locationRemindersEnabled = false
+        harness.mapSearch.results = [pubCandidate(named: "Silent Hotel")]
+
+        await harness.service.process(location: harness.userLocation(), foregroundCheck: true)
+        harness.clock.advance(by: harness.reminderDelay + 1)
+        await harness.service.process(location: harness.userLocation())
+
+        XCTAssertEqual(harness.service.currentCandidate?.name, "Silent Hotel")
+        XCTAssertTrue(harness.notifier.scheduled.isEmpty)
     }
 
     // MARK: - Helpers
@@ -269,10 +374,15 @@ private final class MockMapSearch: MapSearching {
 @MainActor
 private final class MockNotifier: VisitNotifying {
     var authorizationStatus: UNAuthorizationStatus = .authorized
-    private(set) var scheduled: [(venue: VenueCandidate, existing: ParmaEntry?)] = []
+    private(set) var scheduled: [(venue: VenueCandidate, existing: ParmaEntry?, delay: TimeInterval)] = []
+    private(set) var cancelled: [String] = []
 
-    func scheduleVisitReminder(venue: VenueCandidate, existingEntry: ParmaEntry?) async throws {
-        scheduled.append((venue: venue, existing: existingEntry))
+    func scheduleVisitReminder(venue: VenueCandidate, existingEntry: ParmaEntry?, after delay: TimeInterval) async throws {
+        scheduled.append((venue: venue, existing: existingEntry, delay: delay))
+    }
+
+    func cancelVisitReminder(forVenueID venueID: String) {
+        cancelled.append(venueID)
     }
 }
 
@@ -343,6 +453,10 @@ private final class DetectionHarness {
         self.notifier = notifier
         self.clock = clock
         self.service = service
+    }
+
+    var reminderDelay: TimeInterval {
+        TimeInterval(settings.locationReminderDelayMinutes * 60)
     }
 
     /// Simulates an app relaunch: a second service over the same defaults

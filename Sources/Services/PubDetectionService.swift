@@ -40,6 +40,9 @@ final class PubDetectionService {
     private var visitSession: VisitSession? {
         didSet { persistVisitIfChanged(oldValue: oldValue) }
     }
+    /// Foreground fallback so the Home card can appear after the delay even
+    /// when Core Location pauses updates while the user is sitting still.
+    @ObservationIgnored private var revealTask: Task<Void, Never>?
     private var metrics: DetectionMetricsStore
 
     var currentCandidate: VenueCandidate?
@@ -82,18 +85,32 @@ final class PubDetectionService {
     }
 
     func skipCurrentVisit() {
+        revealTask?.cancel()
+        revealTask = nil
         guard var session = visitSession else { return }
+        notifier.cancelVisitReminder(forVenueID: session.candidate.id)
+        if remainingDelay(since: reminderStart(for: session)) > 0 {
+            unrecordNotification(for: session.candidate.id)
+        }
         session.skipped = true
+        session.notificationSent = true
         visitSession = session
         currentCandidate = nil
     }
 
     func clearVisitState() {
+        cancelPendingReminder(clearingSession: true)
         visitSession = nil
         currentCandidate = nil
         nearbyChoices = []
         anchorLocation = nil
         dwellStartedAt = nil
+    }
+
+    /// Drops a not-yet-due reminder when the user turns Location-Based
+    /// Reminders off. The Home card still appears once the delay elapses.
+    func cancelPendingReminder() {
+        cancelPendingReminder(clearingSession: false)
     }
 
     /// Refreshes the geofence set to the most recently logged venues so
@@ -132,15 +149,13 @@ final class PubDetectionService {
         let insideSettledVisit = visitSession.map {
             location.distance(from: $0.venueLocation) <= DetectionTuning.departureDistance
         } ?? false
-        if insideSettledVisit {
-            // Fresh launch mid-visit: bring the suggestion card back without
-            // waiting for the search throttle.
-            restoreCandidateFromSession()
-        }
 
         if location.speed >= DetectionTuning.transitSpeed {
             anchorLocation = location
             dwellStartedAt = nil
+            if insideSettledVisit {
+                await revealPromptIfDue()
+            }
             return
         }
 
@@ -151,12 +166,15 @@ final class PubDetectionService {
             dwellStartedAt = now()
         }
 
-        let hasDwelled = dwellStartedAt.map { now().timeIntervalSince($0) >= DetectionTuning.dwellDuration } ?? false
-        guard throttleExpired, foregroundCheck || hasDwelled else { return }
-
         // A settled visit needs no further searching (audit finding B-04): the
-        // venue is known and the notification decision has been made.
-        guard !insideSettledVisit else { return }
+        // venue is known. Card and notification wait until the chosen delay.
+        if insideSettledVisit {
+            await revealPromptIfDue()
+            return
+        }
+
+        let hasDwelled = dwellStartedAt.map { remainingDelay(since: $0) <= 0 } ?? false
+        guard throttleExpired, foregroundCheck || hasDwelled else { return }
 
         lastSearchAt = now()
         await searchAndClassify(around: location)
@@ -164,9 +182,14 @@ final class PubDetectionService {
 
     // MARK: - Background events
 
-    /// System visit events (arrival/departure). The OS has already established
-    /// the dwell, so no timer gating applies beyond the search throttle.
-    func processVisit(coordinate: CLLocationCoordinate2D, isArrival: Bool) async {
+    /// System visit events (arrival/departure). The OS reports a dwell, but
+    /// the rating prompt still waits for the user's configured reminder delay,
+    /// counted from the visit arrival date when Core Location provides one.
+    func processVisit(
+        coordinate: CLLocationCoordinate2D,
+        isArrival: Bool,
+        arrivalDate: Date = .distantPast
+    ) async {
         guard let settings, settings.locationUseEnabled, settings.locationRemindersEnabled else { return }
         discardExpiredSession()
         let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
@@ -179,9 +202,12 @@ final class PubDetectionService {
             return
         }
 
+        dwellStartedAt = resolvedArrivalDate(arrivalDate)
+        anchorLocation = location
+
         if let session = visitSession,
            location.distance(from: session.venueLocation) <= DetectionTuning.departureDistance {
-            restoreCandidateFromSession()
+            await revealPromptIfDue()
             return
         }
         guard throttleExpired else { return }
@@ -208,11 +234,12 @@ final class PubDetectionService {
             longitude: venue.longitude,
             locality: venue.locality
         )
+        let existingEntry = venue.entries.max { $0.lastModifiedAt < $1.lastModifiedAt }
+        dwellStartedAt = now()
+        anchorLocation = CLLocation(latitude: venue.latitude, longitude: venue.longitude)
         establishVisit(for: candidate)
         guard visitSession?.skipped != true else { return }
-        currentCandidate = candidate
-        let existingEntry = venue.entries.max { $0.lastModifiedAt < $1.lastModifiedAt }
-        await notifyIfAppropriate(for: candidate, existingEntry: existingEntry)
+        await armPrompt(for: candidate, existingEntry: existingEntry)
     }
 
     /// A geofence exit for the venue the session is anchored to ends the
@@ -264,9 +291,7 @@ final class PubDetectionService {
             statusMessage = nil
             establishVisit(for: first)
             guard visitSession?.skipped != true else { return }
-            currentCandidate = first
-            let existingEntry = existingEntry(for: first)
-            await notifyIfAppropriate(for: first, existingEntry: existingEntry)
+            await armPrompt(for: first, existingEntry: existingEntry(for: first))
         } catch {
             AppLog.detection.error("Nearby venue lookup failed: \(error.localizedDescription)")
             statusMessage = "Nearby venue lookup is unavailable. You can still search manually."
@@ -280,7 +305,11 @@ final class PubDetectionService {
 
     // MARK: - Notification
 
-    private func notifyIfAppropriate(for venue: VenueCandidate, existingEntry: ParmaEntry?) async {
+    private func notifyIfAppropriate(
+        for venue: VenueCandidate,
+        existingEntry: ParmaEntry?,
+        delay: TimeInterval
+    ) async {
         guard let settings, settings.locationRemindersEnabled,
               visitSession?.notificationSent != true,
               notifier.authorizationStatus == .authorized
@@ -295,7 +324,7 @@ final class PubDetectionService {
         }
 
         do {
-            try await notifier.scheduleVisitReminder(venue: venue, existingEntry: existingEntry)
+            try await notifier.scheduleVisitReminder(venue: venue, existingEntry: existingEntry, after: delay)
             recordNotification(for: venue.id)
             markNotificationHandled()
         } catch {
@@ -321,6 +350,12 @@ final class PubDetectionService {
         defaults.set(log, forKey: Self.notificationLogKey)
     }
 
+    private func unrecordNotification(for venueID: String) {
+        var log = notificationLog
+        log.removeValue(forKey: venueID)
+        defaults.set(log, forKey: Self.notificationLogKey)
+    }
+
     // MARK: - Visit session state
 
     private func establishVisit(for venue: VenueCandidate) {
@@ -329,16 +364,82 @@ final class PubDetectionService {
                 candidate: venue,
                 skipped: false,
                 notificationSent: false,
-                firstSeenAt: now(),
+                firstSeenAt: dwellStartedAt ?? now(),
                 outsideSince: nil
             )
         }
     }
 
-    private func restoreCandidateFromSession() {
+    private var configuredReminderDelay: TimeInterval {
+        let minutes = settings?.locationReminderDelayMinutes ?? LocationReminderDelay.defaultValue.rawValue
+        return LocationReminderDelay.value(for: minutes).timeInterval
+    }
+
+    private func resolvedArrivalDate(_ arrivalDate: Date) -> Date {
+        let current = now()
+        guard arrivalDate > .distantPast,
+              current.timeIntervalSince(arrivalDate) >= 0,
+              current.timeIntervalSince(arrivalDate) < DetectionTuning.visitSessionMaxAge else {
+            return current
+        }
+        return arrivalDate
+    }
+
+    private func reminderStart(for session: VisitSession) -> Date {
+        if let dwellStartedAt {
+            return min(dwellStartedAt, session.firstSeenAt)
+        }
+        return session.firstSeenAt
+    }
+
+    private func remainingDelay(since start: Date) -> TimeInterval {
+        max(0, configuredReminderDelay - now().timeIntervalSince(start))
+    }
+
+    /// Schedules the delayed notification (so it still fires after the app
+    /// suspends) and only surfaces the Home card once the delay has elapsed.
+    private func armPrompt(for candidate: VenueCandidate, existingEntry: ParmaEntry?) async {
+        guard let session = visitSession, !session.skipped else { return }
+        let remaining = remainingDelay(since: reminderStart(for: session))
+        await notifyIfAppropriate(for: candidate, existingEntry: existingEntry, delay: remaining)
+        if remaining <= 0 {
+            revealTask?.cancel()
+            revealTask = nil
+            currentCandidate = candidate
+        } else {
+            currentCandidate = nil
+            armRevealTask(after: remaining)
+        }
+    }
+
+    private func revealPromptIfDue() async {
         discardExpiredSession()
-        guard let session = visitSession, !session.skipped, currentCandidate == nil else { return }
-        currentCandidate = session.candidate
+        guard let session = visitSession, !session.skipped else { return }
+        await armPrompt(for: session.candidate, existingEntry: existingEntry(for: session.candidate))
+    }
+
+    private func armRevealTask(after delay: TimeInterval) {
+        revealTask?.cancel()
+        guard delay > 0 else { return }
+        revealTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled, let self else { return }
+            await self.revealPromptIfDue()
+        }
+    }
+
+    private func cancelPendingReminder(clearingSession: Bool) {
+        revealTask?.cancel()
+        revealTask = nil
+        guard let session = visitSession else { return }
+        notifier.cancelVisitReminder(forVenueID: session.candidate.id)
+        if remainingDelay(since: reminderStart(for: session)) > 0 {
+            unrecordNotification(for: session.candidate.id)
+            if !clearingSession, var updated = visitSession {
+                updated.notificationSent = false
+                visitSession = updated
+            }
+        }
     }
 
     private func discardExpiredSession() {
