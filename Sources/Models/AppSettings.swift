@@ -21,12 +21,13 @@ enum AppTheme: String, Codable, CaseIterable, Identifiable, Sendable {
 
 enum LocationReminderDelay: Int, CaseIterable, Identifiable, Sendable {
     case ten = 10
+    case fifteen = 15
     case twenty = 20
     case thirty = 30
-    case fortyFive = 45
+    case forty = 40
     case sixty = 60
 
-    static let defaultValue: Self = .thirty
+    static let defaultValue: Self = .fifteen
 
     var id: Int { rawValue }
 
@@ -37,7 +38,9 @@ enum LocationReminderDelay: Int, CaseIterable, Identifiable, Sendable {
     }
 
     static func value(for minutes: Int) -> Self {
-        Self(rawValue: minutes) ?? defaultValue
+        // Migrate the previous 45-minute option to the closest supported value.
+        if minutes == 45 { return .forty }
+        return Self(rawValue: minutes) ?? defaultValue
     }
 }
 
